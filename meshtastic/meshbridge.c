@@ -2597,12 +2597,14 @@ void thread_up(void) {
             payload = p->payload;
             size = p->size;
 
-            /* --- CRC check: drop bad packets before any further processing --- */
-            if (p->status != STAT_CRC_OK) {
-                MSG("INFO: [%d/%d] Dropping CRC-%s packet (chain=%u sf=%u size=%u rssi=%d)\n",
-                    i+1, nb_pkt,
-                    (p->status == STAT_CRC_BAD) ? "BAD" : "DISABLED",
-                    rf_chain, datarate_sf, size, rssi);
+            /* --- Raw packet dump (before any filtering) --- */
+            MSG("INFO: [%d/%d] RAW chain=%u freq=%u sf=%u bw=%u cr=%u size=%u status=0x%02X rssi=%d snr=%.1f\n",
+                i+1, nb_pkt, rf_chain, freq_hz, datarate_sf, bandwidth_hz, coderate, size, p->status, rssi, snr);
+
+            /* --- CRC check: only drop confirmed corrupted packets --- */
+            if (p->status == STAT_CRC_BAD) {
+                MSG("INFO: [%d/%d] Dropping CRC-BAD packet (chain=%u sf=%u size=%u rssi=%d)\n",
+                    i+1, nb_pkt, rf_chain, datarate_sf, size, rssi);
                 if (rf_chain < LGW_IF_CHAIN_NB) chain_crc_err[rf_chain]++;
                 continue;
             }
