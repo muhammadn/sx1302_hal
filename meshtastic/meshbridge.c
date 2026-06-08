@@ -936,6 +936,10 @@ static int parse_SX130x_configuration(const char * conf_file) {
         MSG("WARNING: Data type for lorawan_public seems wrong, please check\n");
         boardconf.lorawan_public = false;
     }
+    if (boardconf.lorawan_public == true) {
+        MSG("WARNING: forcing lorawan_public=0 for Meshtastic syncword compatibility\n");
+    }
+    boardconf.lorawan_public = false;
     val = json_object_get_value(conf_obj, "clksrc"); /* fetch value (if possible) */
     if (json_value_get_type(val) == JSONNumber) {
         boardconf.clksrc = (uint8_t)json_value_get_number(val);
