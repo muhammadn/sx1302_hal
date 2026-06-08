@@ -1,10 +1,10 @@
 {
   "SX130x_conf": {
     "lorawan_public": false,
-    "lora_syncword": "0x2b",
+    "lora_syncword": "0x12",
     "com_type": "USB",
     "com_path": "/dev/ttyACM0",
-    "clksrc": 1,
+    "clksrc": 0,
     "antenna_gain": 0,
     "lbt_cfg": {
       "enable": true,
