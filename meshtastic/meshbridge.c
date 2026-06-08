@@ -955,47 +955,14 @@ static int parse_SX130x_configuration(const char * conf_file) {
         MSG("ERROR: com_path must be configured in %s\n", conf_file);
         return -1;
     }
-    /* Syncword selector for LoRa mode.
-       Supported values (SX1302 FRAME_SYNCH registers are 5-bit signed, max peak pos = 15):
-       - 0x12 (private network, peaks 2/4 — default, safe for SX1302)
-       - 0x34 (LoRaWAN public, peaks 6/8)
-       NOTE: 0x2b is NOT supported on SX1302 — its lower nibble 0xb=11 requires peak2=22
-             which overflows the 5-bit signed register (max +15) and silently breaks RX. */
-    uint8_t lora_syncword = 0x12;
-    val = json_object_get_value(conf_obj, "lora_syncword");
-    if (json_value_get_type(val) == JSONNumber) {
-        lora_syncword = (uint8_t)json_value_get_number(val);
-    } else if (json_value_get_type(val) == JSONString) {
-        const char *sw = json_value_get_string(val);
-        if (sw != NULL) {
-            if (!strcasecmp(sw, "private")) {
-                lora_syncword = 0x12;
-            } else if (!strcasecmp(sw, "public")) {
-                lora_syncword = 0x34;
-            } else {
-                char *endptr = NULL;
-                long parsed = strtol(sw, &endptr, 0);
-                if (endptr != sw && parsed >= 0 && parsed <= 0xFF) {
-                    lora_syncword = (uint8_t)parsed;
-                } else {
-                    MSG("WARNING: invalid lora_syncword '%s', using default 0x12\n", sw);
-                    lora_syncword = 0x12;
-                }
-            }
-        }
-    }
-
-    if (lora_syncword == 0x34) {
-        boardconf.lorawan_public = true;
-    } else if (lora_syncword == 0x12) {
-        boardconf.lorawan_public = false;
+    val = json_object_get_value(conf_obj, "lorawan_public"); /* fetch value (if possible) */
+    if (json_value_get_type(val) == JSONBoolean) {
+        boardconf.lorawan_public = (bool)json_value_get_boolean(val);
     } else {
-        MSG("WARNING: lora_syncword 0x%02X not supported on SX1302 (peak overflow), using 0x12\n", lora_syncword);
+        MSG("WARNING: Data type for lorawan_public seems wrong, please check\n");
         boardconf.lorawan_public = false;
-        lora_syncword = 0x12;
     }
-
-    MSG("INFO: lora_syncword configured as 0x%02X\n", lora_syncword);
+    MSG("INFO: lorawan_public %d\n", boardconf.lorawan_public);
 
     val = json_object_get_value(conf_obj, "clksrc"); /* fetch value (if possible) */
     if (json_value_get_type(val) == JSONNumber) {
