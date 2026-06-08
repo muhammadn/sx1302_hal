@@ -80,7 +80,7 @@
     "radio_0": {
       "enable": true,
       "type": "SX1250",
-      "freq": 919800000,
+      "freq": 922875000,
       "rssi_offset": -166,
       "tx_enable": true,
       "tx_freq_min": 919000000,
@@ -103,7 +103,7 @@
       ]
     },
     "radio_1": {
-      "enable": true,
+      "enable": false,
       "type": "SX1250",
       "freq": 922300000,
       "rssi_offset": -166,
@@ -113,56 +113,56 @@
     },
     "chan_multiSF_All": {"spreading_factor_enable": [5, 6, 7, 8, 9, 10, 11, 12]},
     "chan_multiSF_0": {
-      "enable": true,
+      "enable": false,
       "radio": 0,
       "if": -737500
     },
     "chan_multiSF_1": {
-      "enable": true,
+      "enable": false,
       "radio": 0,
       "if": -612500
     },
     "chan_multiSF_2": {
-      "enable": true,
+      "enable": false,
       "radio": 0,
       "if": -487500
     },
     "chan_multiSF_3": {
-      "enable": true,
+      "enable": false,
       "radio": 0,
       "if": -362500
     },
     "chan_multiSF_4": {
-      "enable": true,
+      "enable": false,
       "radio": 1,
       "if": -737500
     },
     "chan_multiSF_5": {
-      "enable": true,
+      "enable": false,
       "radio": 1,
       "if": -612500
     },
     "chan_multiSF_6": {
-      "enable": true,
+      "enable": false,
       "radio": 1,
       "if": -487500
     },
     "chan_multiSF_7": {
-      "enable": true,
+      "enable": false,
       "radio": 1,
       "if": -362500
     },
     "chan_Lora_std": {
       "enable": true,
-      "radio": 1,
-      "if": 575000,
+      "radio": 0,
+      "if": 0,
       "bandwidth": 250000,
-      "spread_factor": 7
+      "spread_factor": 11
     },
     "chan_FSK": {
-      "enable": true,
-      "radio": 1,
-      "if": 575000,
+      "enable": false,
+      "radio": 0,
+      "if": 0,
       "bandwidth": 125000,
       "datarate": 50000
     }
