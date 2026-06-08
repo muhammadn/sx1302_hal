@@ -324,6 +324,11 @@ static uint32_t nb_pkt_log[LGW_IF_CHAIN_NB][8]; /* [CH][SF] */
 static uint32_t nb_pkt_received_lora = 0;
 static uint32_t nb_pkt_received_fsk = 0;
 
+/* Per-channel airtime accounting */
+static uint32_t chain_airtime_ms[LGW_IF_CHAIN_NB]; /* cumulative airtime per IF chain (ms) */
+static uint32_t chain_pkt_count[LGW_IF_CHAIN_NB];  /* cumulative packet count per IF chain */
+static uint32_t chain_crc_err[LGW_IF_CHAIN_NB];    /* CRC-bad packets dropped per IF chain */
+
 static struct lgw_conf_debug_s debugconf;
 static uint32_t nb_pkt_received_ref[16];
 
@@ -843,6 +848,27 @@ void mqtt_publish_response(const char* message, int length) {
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
 
+/* Calculate LoRa time-on-air in milliseconds (Semtech AN1200.13 formula).
+   sf: spreading factor (5-12), bw_hz: bandwidth in Hz,
+   payload_bytes: payload length, cr: coding rate (1=4/5 .. 4=4/8),
+   preamble_syms: number of preamble symbols (8 for standard LoRa). */
+static uint32_t lora_toa_ms(uint8_t sf, uint32_t bw_hz, uint16_t payload_bytes,
+                             uint8_t cr, uint16_t preamble_syms) {
+    if (sf < 5 || sf > 12 || bw_hz == 0) return 0;
+    /* symbol duration in µs */
+    double t_sym_us = (double)(1UL << sf) * 1e6 / (double)bw_hz;
+    /* preamble duration */
+    double t_preamble_us = ((double)preamble_syms + 4.25) * t_sym_us;
+    /* payload symbol count */
+    int cr_n = (cr >= 1 && cr <= 4) ? (int)cr : 1; /* default CR4/5 */
+    double tmp = (8.0 * (double)payload_bytes - 4.0 * (double)sf + 28.0 + 16.0)
+                 / (4.0 * (double)sf);
+    int payload_syms = 8 + (int)(tmp < 0.0 ? 0.0 : (tmp + 0.9999)) * (cr_n + 4);
+    double t_payload_us = (double)payload_syms * t_sym_us;
+    return (uint32_t)((t_preamble_us + t_payload_us) / 1000.0 + 0.5);
+}
+
+
 static void usage( void )
 {
     printf("~~~ Library version string~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
@@ -929,15 +955,7 @@ static int parse_SX130x_configuration(const char * conf_file) {
         MSG("ERROR: com_path must be configured in %s\n", conf_file);
         return -1;
     }
-    val = json_object_get_value(conf_obj, "lorawan_public"); /* fetch value (if possible) */
-    if (json_value_get_type(val) == JSONBoolean) {
-        boardconf.lorawan_public = (bool)json_value_get_boolean(val);
-    } else {
-        MSG("WARNING: Data type for lorawan_public seems wrong, please check\n");
-        boardconf.lorawan_public = false;
-    }
-
-    /* Optional explicit syncword selector for LoRa mode.
+    /* Syncword selector for LoRa mode.
        Supported values (SX1302 FRAME_SYNCH registers are 5-bit signed, max peak pos = 15):
        - 0x12 (private network, peaks 2/4 — default, safe for SX1302)
        - 0x34 (LoRaWAN public, peaks 6/8)
@@ -2458,6 +2476,9 @@ void thread_up(void) {
     /* report management variable */
     bool send_report = false;
 
+    /* Airtime heartbeat */
+    time_t last_heartbeat = time(NULL);
+
     /* Zaihan's code */
     const uint8_t *payload;    // usually pkt->payload
     uint16_t size;             // usually pkt->size
@@ -2516,6 +2537,17 @@ void thread_up(void) {
 
         /* wait a short time if no packets, nor status report */
         if ((nb_pkt == 0) && (send_report == false)) {
+            /* heartbeat: print per-chain airtime stats every 30 s */
+            time_t now = time(NULL);
+            if (difftime(now, last_heartbeat) >= 30.0) {
+                last_heartbeat = now;
+                MSG("INFO: [rx] airtime stats (cumulative since start):\n");
+                for (int ci = 0; ci < LGW_IF_CHAIN_NB; ci++) {
+                    if (chain_pkt_count[ci] > 0 || chain_crc_err[ci] > 0)
+                        MSG("INFO: [rx]   chain %2d: %u pkts  %u ms airtime  %u CRC-bad\n",
+                            ci, chain_pkt_count[ci], chain_airtime_ms[ci], chain_crc_err[ci]);
+                }
+            }
             wait_ms(FETCH_SLEEP_MS);
             continue;
         }
@@ -2565,6 +2597,16 @@ void thread_up(void) {
             payload = p->payload;
             size = p->size;
 
+            /* --- CRC check: drop bad packets before any further processing --- */
+            if (p->status != STAT_CRC_OK) {
+                MSG("INFO: [%d/%d] Dropping CRC-%s packet (chain=%u sf=%u size=%u rssi=%d)\n",
+                    i+1, nb_pkt,
+                    (p->status == STAT_CRC_BAD) ? "BAD" : "DISABLED",
+                    rf_chain, datarate_sf, size, rssi);
+                if (rf_chain < LGW_IF_CHAIN_NB) chain_crc_err[rf_chain]++;
+                continue;
+            }
+
             // Validate packet before passing to Meshtastic
             if (size == 0 || size > 255) {
                 MSG("WARNING: [%d/%d] Skipping invalid packet (size=%u)\n", i+1, nb_pkt, size);
@@ -2583,9 +2625,18 @@ void thread_up(void) {
                 continue;
             }
 
+            /* --- Airtime accounting --- */
+            {
+                uint32_t toa = lora_toa_ms(datarate_sf, bandwidth_hz, size, coderate, 8);
+                if (rf_chain < LGW_IF_CHAIN_NB) {
+                    chain_airtime_ms[rf_chain] += toa;
+                    chain_pkt_count[rf_chain]++;
+                }
+                MSG("INFO: [%d/%d] RX chain=%u freq=%u sf=%u bw=%u rssi=%d snr=%.1f size=%u toa=%ums\n",
+                    i+1, nb_pkt, rf_chain, freq_hz, datarate_sf, bandwidth_hz, rssi, snr, size, toa);
+            }
+
             // Pass validated packet to Meshtastic bridge
-            MSG("INFO: [%d/%d] Passing packet to Meshtastic (size=%u, rssi=%d, snr=%.1f)\n", 
-                       i+1, nb_pkt, size, rssi, snr);
             mtk_bridge_handle_uplink(payload, size,
                                      rssi, snr,
                                      freq_hz, tmst, rf_chain,
