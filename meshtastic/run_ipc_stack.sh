@@ -8,7 +8,7 @@ DEV_MODE=0
 
 SOCKET_PATH="${MESHTASTIC_IPC_SOCKET:-/tmp/meshtastic-sx1302.sock}"
 SOCKET_WAIT_SECONDS="${SOCKET_WAIT_SECONDS:-2}"
-DAEMON_BIN="${DAEMON_BIN:-$SCRIPT_DIR/meshtasticd}"
+DAEMON_BIN="${DAEMON_BIN:-$SCRIPT_DIR/meshbridge}"
 STUB_BIN="${STUB_BIN:-$SCRIPT_DIR/meshtastic_runtime_stub}"
 NATIVE_BIN="${NATIVE_BIN:-$SCRIPT_DIR/firmware/.pio/build/native/meshtasticd}"
 
@@ -27,7 +27,7 @@ Environment overrides:
   MESHTASTIC_IPC_SOCKET   Unix socket path (default: /tmp/meshtastic-sx1302.sock)
   MESHTASTIC_IPC_REQUIRED Set to 1 to make daemon fail-fast when runtime is missing
   SOCKET_WAIT_SECONDS     Runtime socket wait timeout (default: 2)
-  DAEMON_BIN              sx1302 daemon path (default: ./meshtasticd)
+    DAEMON_BIN              sx1302 daemon path (default: ./meshbridge)
   STUB_BIN                runtime-stub path (default: ./meshtastic_runtime_stub)
   NATIVE_BIN              native runtime path (default: ./firmware/.pio/build/native/meshtasticd)
   DAEMON_ARGS             Extra args passed to daemon

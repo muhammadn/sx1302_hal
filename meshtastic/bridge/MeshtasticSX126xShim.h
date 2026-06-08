@@ -21,7 +21,7 @@ int meshtastic_sx126x_runtime_send(
 );
 
 /*
- * Forwarder-facing API consumed by meshtasticd.c.
+ * Forwarder-facing API consumed by meshbridge (from meshbridge.c).
  */
 void* meshtastic_init_and_setup(void);
 void meshtastic_run_loop(void);

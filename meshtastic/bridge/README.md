@@ -1,6 +1,6 @@
 # Meshtastic Bridge Architecture
 
-This bridge mirrors the ClusterDuck SX1302 bridge pattern and provides a thread-safe handoff between `meshtasticd` (C) and a Meshtastic runtime.
+This bridge mirrors the ClusterDuck SX1302 bridge pattern and provides a thread-safe handoff between `meshbridge` (C) and a Meshtastic runtime.
 
 ## Files
 
@@ -27,7 +27,7 @@ This bridge mirrors the ClusterDuck SX1302 bridge pattern and provides a thread-
   - `meshtastic_sx126x_runtime_loop()`
   - `meshtastic_sx126x_runtime_send(...)`
 
-If not provided, weak fallbacks keep `meshtasticd` buildable for bridge-level testing.
+If not provided, weak fallbacks keep `meshbridge` buildable for bridge-level testing.
 
 ## Stability-first runtime integration
 
@@ -62,7 +62,7 @@ Arduino-compatible platform headers.
 ## Implemented: Linux-first IPC runtime path
 
 The default build now enables a process-boundary runtime bridge for Linux daemons.
-`meshtasticd` links `MeshtasticRuntimeIpc.c`, which provides strong
+`meshbridge` links `MeshtasticRuntimeIpc.c`, which provides strong
 `meshtastic_sx126x_runtime_*` symbols and communicates with an external Meshtastic
 runtime process over a Unix domain `SOCK_SEQPACKET` socket.
 
@@ -77,7 +77,7 @@ runtime process over a Unix domain `SOCK_SEQPACKET` socket.
 ### Runtime environment variables
 
 - `MESHTASTIC_IPC_SOCKET`
-  - Unix socket path used by `meshtasticd`.
+  - Unix socket path used by `meshbridge`.
   - Default: `/tmp/meshtastic-sx1302.sock`.
 - `MESHTASTIC_IPC_REQUIRED`
   - `1` to fail startup if IPC runtime is unavailable.
@@ -166,7 +166,7 @@ MESHTASTIC_IPC_SOCKET=/tmp/custom.sock ./meshtastic/meshtastic_runtime_stub
 
 - Do not deploy `meshtastic_runtime_stub` in production.
 - Production requires a real Meshtastic Linux runtime implementing the same IPC contract.
-- Set `MESHTASTIC_IPC_REQUIRED=1` in production so `meshtasticd` fails fast if runtime IPC is unavailable.
+- Set `MESHTASTIC_IPC_REQUIRED=1` in production so `meshbridge` fails fast if runtime IPC is unavailable.
 
 ### Production-readiness checklist
 

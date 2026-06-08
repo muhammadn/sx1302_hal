@@ -83,7 +83,7 @@ extern "C" {
 
 /* CDP default radio parameters (from cdpcfg.h).
    If cdpcfg.h is not available in this build context, use these constants. */
-#define CDPCFG_RF_LORA_FREQ_HZ 922800000
+#define CDPCFG_RF_LORA_FREQ_HZ 922875000
 #define CDPCFG_RF_LORA_BW 125.0f
 #define CDPCFG_RF_LORA_SF 7
 #define CDPCFG_RF_LORA_TXPOW 14

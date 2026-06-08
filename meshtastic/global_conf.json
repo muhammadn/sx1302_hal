@@ -10,39 +10,67 @@
       "rssi_target": -80,
       "chan_cfg": [
         {
-          "freq_hz": 922800000,
+          "freq_hz": 919125000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 922600000,
+          "freq_hz": 919375000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 922400000,
+          "freq_hz": 919625000,
 	  "scan_time_us": 128
         },
         {
-          "freq_hz": 922200000,
+          "freq_hz": 919875000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 922000000,
+          "freq_hz": 920125000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 921800000,
+          "freq_hz": 920375000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 921600000,
+          "freq_hz": 920625000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 921400000,
+          "freq_hz": 920875000,
           "scan_time_us": 128
         },
         {
-          "freq_hz": 921200000,
+          "freq_hz": 921125000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 921375000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 921625000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 921875000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 922125000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 922375000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 922625000,
+          "scan_time_us": 128
+        },
+        {
+          "freq_hz": 922875000,
           "scan_time_us": 128
         }
       ],
@@ -51,11 +79,11 @@
     "radio_0": {
       "enable": true,
       "type": "SX1250",
-      "freq": 922500000,
+      "freq": 920500000,
       "rssi_offset": -166,
       "tx_enable": true,
-      "tx_freq_min": 921200000,
-      "tx_freq_max": 922800000,
+      "tx_freq_min": 919000000,
+      "tx_freq_max": 924000000,
       "tx_gain_lut": [
         {"rf_power": 0,  "pa_gain": 0, "pwr_idx": 0},
         {"rf_power": 12, "pa_gain": 0, "pwr_idx": 15},
@@ -76,64 +104,64 @@
     "radio_1": {
       "enable": true,
       "type": "SX1250",
-      "freq": 921700000,
+      "freq": 922500000,
       "rssi_offset": -166,
       "tx_enable": false,
-      "tx_freq_min": 921200000,
-      "tx_freq_max": 922800000
+      "tx_freq_min": 919000000,
+      "tx_freq_max": 924000000
     },
     "chan_multiSF_All": {"spreading_factor_enable": [5, 6, 7, 8, 9, 10, 11, 12]},
     "chan_multiSF_0": {
       "enable": true,
       "radio": 0,
-      "if": 300000
+      "if": -1375000
     },
     "chan_multiSF_1": {
       "enable": true,
       "radio": 0,
-      "if": 100000
+      "if": -1125000
     },
     "chan_multiSF_2": {
       "enable": true,
       "radio": 0,
-      "if": -100000
+      "if": -875000
     },
     "chan_multiSF_3": {
       "enable": true,
       "radio": 0,
-      "if": -300000
+      "if": -625000
     },
     "chan_multiSF_4": {
       "enable": true,
       "radio": 1,
-      "if": 300000
+      "if": -1375000
     },
     "chan_multiSF_5": {
       "enable": true,
       "radio": 1,
-      "if": 100000
+      "if": -1125000
     },
     "chan_multiSF_6": {
       "enable": true,
       "radio": 1,
-      "if": -100000
+      "if": -875000
     },
     "chan_multiSF_7": {
       "enable": true,
       "radio": 1,
-      "if": -300000
+      "if": -625000
     },
     "chan_Lora_std": {
       "enable": true,
-      "radio": 0,
-      "if": 0,
+      "radio": 1,
+      "if": 375000,
       "bandwidth": 250000,
       "spread_factor": 7
     },
     "chan_FSK": {
       "enable": true,
       "radio": 1,
-      "if": 0,
+      "if": 375000,
       "bandwidth": 125000,
       "datarate": 50000
     }

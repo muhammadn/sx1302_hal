@@ -4,7 +4,8 @@ include ../target.cfg
 
 ### Application-specific constants
 
-APP_NAME := meshtasticd
+APP_NAME := meshbridge
+APP_SRC := meshbridge.c
 RUNTIME_STUB_APP := meshtastic_runtime_stub
 
 ### Environment constants
@@ -99,7 +100,7 @@ $(OBJDIR)/MeshtasticRuntimeStub.o: $(MESHTASTIC_PATH)/bridge/MeshtasticRuntimeSt
 $(OBJDIR)/MeshtasticRuntimeAdapter.o: $(MESHTASTIC_PATH)/bridge/MeshtasticRuntimeAdapter.cpp | $(OBJDIR)
 	$(CXX) -c $(CXXFLAGS) -I$(MESHTASTIC_FIRMWARE_PATH)/src $(MESHTASTIC_RUNTIME_INCLUDES) $< -o $@
 
-$(OBJDIR)/$(APP_NAME).o: $(APP_NAME).c | $(OBJDIR)
+$(OBJDIR)/$(APP_NAME).o: $(APP_SRC) | $(OBJDIR)
 	$(CC) -c $(CFLAGS) $(VFLAG) -I$(LGW_PATH)/inc $< -o $@
 
 $(APP_NAME): $(OBJDIR)/$(APP_NAME).o $(OBJDIR)/jitqueue.o $(OBJDIR)/MeshtasticBridge.o $(OBJDIR)/MeshtasticSX126xShim.o $(IPC_OBJS) $(ADAPTER_OBJS) $(LGW_PATH)/libloragw.a
