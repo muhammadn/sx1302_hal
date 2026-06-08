@@ -2830,13 +2830,52 @@ void thread_down(void) {
 
                 /* RF chain and power */
                 txpkt.rf_chain = (dl_rf_chain < LGW_RF_CHAIN_NB) ? dl_rf_chain : 0;
-                txpkt.rf_power = CDPCFG_RF_LORA_TXPOW;
+                txpkt.rf_power = (dl_tx_power_dbm != 0) ? (int8_t)dl_tx_power_dbm : CDPCFG_RF_LORA_TXPOW;
 
-                /* Modulation params — LoRa defaults mapped from CDP config if not provided */
+                /* Use IPC-supplied modem parameters — NOT hardcoded defaults */
                 txpkt.modulation = MOD_LORA;
-                txpkt.bandwidth  = BW_125KHZ;
-                txpkt.datarate   = DR_LORA_SF7;
-                txpkt.coderate   = CR_LORA_4_5;
+
+                /* Bandwidth: map Hz value from IPC to HAL enum */
+                switch (dl_bw_hz) {
+                    case 500000: txpkt.bandwidth = BW_500KHZ; break;
+                    case 250000: txpkt.bandwidth = BW_250KHZ; break;
+                    case 125000: txpkt.bandwidth = BW_125KHZ; break;
+                    default:
+                        MSG("WARNING: [down] unknown dl_bw_hz=%u, falling back to BW_250KHZ\n", dl_bw_hz);
+                        txpkt.bandwidth = BW_250KHZ;
+                        break;
+                }
+
+                /* Spreading factor: IPC sends raw SF number (5-12) */
+                switch (dl_sf) {
+                    case  5: txpkt.datarate = DR_LORA_SF5;  break;
+                    case  6: txpkt.datarate = DR_LORA_SF6;  break;
+                    case  7: txpkt.datarate = DR_LORA_SF7;  break;
+                    case  8: txpkt.datarate = DR_LORA_SF8;  break;
+                    case  9: txpkt.datarate = DR_LORA_SF9;  break;
+                    case 10: txpkt.datarate = DR_LORA_SF10; break;
+                    case 11: txpkt.datarate = DR_LORA_SF11; break;
+                    case 12: txpkt.datarate = DR_LORA_SF12; break;
+                    default:
+                        MSG("WARNING: [down] unknown dl_sf=%u, falling back to SF11\n", dl_sf);
+                        txpkt.datarate = DR_LORA_SF11;
+                        break;
+                }
+
+                /* Coding rate: IPC sends 1=CR4/5, 2=CR4/6, 3=CR4/7, 4=CR4/8 */
+                switch (dl_cr) {
+                    case 1: txpkt.coderate = CR_LORA_4_5; break;
+                    case 2: txpkt.coderate = CR_LORA_4_6; break;
+                    case 3: txpkt.coderate = CR_LORA_4_7; break;
+                    case 4: txpkt.coderate = CR_LORA_4_8; break;
+                    default:
+                        MSG("WARNING: [down] unknown dl_cr=%u, falling back to CR4/5\n", dl_cr);
+                        txpkt.coderate = CR_LORA_4_5;
+                        break;
+                }
+
+                MSG("INFO: [down] TX params: freq=%u sf=%u bw=%u cr=%u pwr=%d size=%u\n",
+                    txpkt.freq_hz, dl_sf, dl_bw_hz, dl_cr, txpkt.rf_power, txpkt.size);
 
 	        MSG("INFO: txpkt size is %u\n", txpkt.size);
                 downlink_type = JIT_PKT_TYPE_DOWNLINK_CLASS_C;  /* CLASS_C calculates ASAP timing */                /* End of Zaihan's code */
@@ -2865,7 +2904,10 @@ void thread_down(void) {
 
                 /* insert packet to be sent into JIT queue */
                 if (jit_result == JIT_ERROR_OK) {
-                    /* current_concentrator_time already obtained above */
+                    /* fetch current concentrator time for JIT scheduling */
+                    pthread_mutex_lock(&mx_concent);
+                    lgw_get_instcnt(&current_concentrator_time);
+                    pthread_mutex_unlock(&mx_concent);
                     jit_result = jit_enqueue(&jit_queue[txpkt.rf_chain], current_concentrator_time, &txpkt, downlink_type);
                     if (jit_result != JIT_ERROR_OK) {
                         printf("ERROR: Packet REJECTED (jit error=%d)\n", jit_result);
