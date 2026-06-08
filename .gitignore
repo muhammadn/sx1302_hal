@@ -10,3 +10,5 @@ util_net_downlink/net_downlink
 util_boot/boot
 util_spectral_scan/spectral_scan
 clusterduck/clusterduckd
+meshtastic/meshtastic_runtime_stub
+meshtastic/meshtasticd

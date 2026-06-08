@@ -6,9 +6,9 @@ export
 
 ### general build targets
 
-.PHONY: all clean install install_conf libtools libloragw packet_forwarder util_net_downlink util_chip_id util_boot util_spectral_scan
+.PHONY: all clean install install_conf libtools libloragw packet_forwarder util_net_downlink util_chip_id util_boot util_spectral_scan clusterduck meshtastic
 
-all: libtools libloragw packet_forwarder util_net_downlink util_chip_id util_boot util_spectral_scan clusterduck
+all: libtools libloragw packet_forwarder util_net_downlink util_chip_id util_boot util_spectral_scan clusterduck meshtastic
 
 libtools:
 	$(MAKE) all -e -C $@
@@ -20,6 +20,9 @@ packet_forwarder: libloragw
 	$(MAKE) all -e -C $@
 
 clusterduck: libloragw
+	$(MAKE) all -e -C $@
+
+meshtastic: libloragw
 	$(MAKE) all -e -C $@
 
 util_net_downlink: libtools
@@ -43,6 +46,7 @@ clean:
 	$(MAKE) clean -e -C util_boot
 	$(MAKE) clean -e -C util_spectral_scan
 	$(MAKE) clean -e -C clusterduck
+	$(MAKE) clean -e -C meshtastic
 
 install:
 	$(MAKE) install -e -C libloragw
@@ -52,6 +56,7 @@ install:
 	$(MAKE) install -e -C util_boot
 	$(MAKE) install -e -C util_spectral_scan
 	$(MAKE) install -e -C clusterduck
+	$(MAKE) install -e -C meshtastic
 
 install_conf:
 	$(MAKE) install_conf -e -C packet_forwarder
