@@ -936,10 +936,47 @@ static int parse_SX130x_configuration(const char * conf_file) {
         MSG("WARNING: Data type for lorawan_public seems wrong, please check\n");
         boardconf.lorawan_public = false;
     }
-    if (boardconf.lorawan_public == true) {
-        MSG("WARNING: forcing lorawan_public=0 for Meshtastic syncword compatibility\n");
+
+    /* Optional explicit syncword selector for LoRa mode.
+       Supported values:
+       - 0x2b (Meshtastic, default)
+       - 0x34 (LoRaWAN public) */
+    uint8_t lora_syncword = 0x2b;
+    val = json_object_get_value(conf_obj, "lora_syncword");
+    if (json_value_get_type(val) == JSONNumber) {
+        lora_syncword = (uint8_t)json_value_get_number(val);
+    } else if (json_value_get_type(val) == JSONString) {
+        const char *sw = json_value_get_string(val);
+        if (sw != NULL) {
+            if (!strcasecmp(sw, "meshtastic")) {
+                lora_syncword = 0x2b;
+            } else if (!strcasecmp(sw, "public")) {
+                lora_syncword = 0x34;
+            } else {
+                char *endptr = NULL;
+                long parsed = strtol(sw, &endptr, 0);
+                if (endptr != sw && parsed >= 0 && parsed <= 0xFF) {
+                    lora_syncword = (uint8_t)parsed;
+                } else {
+                    MSG("WARNING: invalid lora_syncword '%s', using default 0x2b\n", sw);
+                    lora_syncword = 0x2b;
+                }
+            }
+        }
     }
-    boardconf.lorawan_public = false;
+
+    if (lora_syncword == 0x34) {
+        boardconf.lorawan_public = true;
+    } else if (lora_syncword == 0x2b) {
+        boardconf.lorawan_public = false;
+    } else {
+        MSG("WARNING: lora_syncword 0x%02X is not supported in this build, using Meshtastic 0x2b\n", lora_syncword);
+        boardconf.lorawan_public = false;
+        lora_syncword = 0x2b;
+    }
+
+    MSG("INFO: lora_syncword configured as 0x%02X\n", lora_syncword);
+
     val = json_object_get_value(conf_obj, "clksrc"); /* fetch value (if possible) */
     if (json_value_get_type(val) == JSONNumber) {
         boardconf.clksrc = (uint8_t)json_value_get_number(val);

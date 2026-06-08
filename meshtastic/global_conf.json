@@ -1,6 +1,7 @@
 {
   "SX130x_conf": {
     "lorawan_public": false,
+    "lora_syncword": "0x2b",
     "com_type": "USB",
     "com_path": "/dev/ttyACM0",
     "clksrc": 1,
