@@ -2882,23 +2882,29 @@ void thread_down(void) {
                         break;
                 }
 
-                /* Coding rate: IPC sends 1=CR4/5, 2=CR4/6, 3=CR4/7, 4=CR4/8 */
-                switch (dl_cr) {
-                    case 1: txpkt.coderate = CR_LORA_4_5; break;
-                    case 2: txpkt.coderate = CR_LORA_4_6; break;
-                    case 3: txpkt.coderate = CR_LORA_4_7; break;
-                    case 4: txpkt.coderate = CR_LORA_4_8; break;
-                    default:
-                        MSG("WARNING: [down] unknown dl_cr=%u, falling back to CR4/5\n", dl_cr);
-                        txpkt.coderate = CR_LORA_4_5;
-                        break;
+                /* Coding rate: IPC sends RadioLib format (5=CR4/5, 6=CR4/6, 7=CR4/7, 8=CR4/8)
+                 * OR lgw format (1=CR4/5, 2=CR4/6, 3=CR4/7, 4=CR4/8) — handle both */
+                if (dl_cr >= 5 && dl_cr <= 8) {
+                    txpkt.coderate = dl_cr - 4; /* RadioLib → lgw */
+                } else {
+                    switch (dl_cr) {
+                        case 1: txpkt.coderate = CR_LORA_4_5; break;
+                        case 2: txpkt.coderate = CR_LORA_4_6; break;
+                        case 3: txpkt.coderate = CR_LORA_4_7; break;
+                        case 4: txpkt.coderate = CR_LORA_4_8; break;
+                        default:
+                            txpkt.coderate = CR_LORA_4_5;
+                            break;
+                    }
                 }
+                txpkt.preamble = 16; /* Meshtastic uses 16-symbol preamble */
+                txpkt.invert_pol = false; /* Meshtastic uses normal (non-inverted) IQ */
+                txpkt.no_crc = false;
+                txpkt.no_header = false;
 
-                MSG("INFO: [down] TX params: freq=%u sf=%u bw=%u cr=%u pwr=%d size=%u\n",
-                    txpkt.freq_hz, dl_sf, dl_bw_hz, dl_cr, txpkt.rf_power, txpkt.size);
-
-	        MSG("INFO: txpkt size is %u\n", txpkt.size);
-                downlink_type = JIT_PKT_TYPE_DOWNLINK_CLASS_C;  /* CLASS_C calculates ASAP timing */                /* End of Zaihan's code */
+                MSG("DEBUG: [outer] TX freq=%u sf=%u bw_hz=%u cr=%u preamble=%u pwr=%d size=%u\n",
+                    txpkt.freq_hz, dl_sf, dl_bw_hz, dl_cr, txpkt.preamble, txpkt.rf_power, txpkt.size);
+                downlink_type = JIT_PKT_TYPE_DOWNLINK_CLASS_C;  /* CLASS_C calculates ASAP timing */
 
                 /* reset error/warning results */
                 jit_result = warning_result = JIT_ERROR_OK;
@@ -3126,12 +3132,12 @@ void thread_down(void) {
                 /* RadioLib CR: 5=4/5, 6=4/6, 7=4/7, 8=4/8 → lgw: 1,2,3,4 */
                 txpkt.coderate = (dl_cr >= 5 && dl_cr <= 8) ? (dl_cr - 4) : CR_LORA_4_5;
                 txpkt.invert_pol = false; /* Meshtastic uses normal (non-inverted) IQ */
-                txpkt.preamble = 8;
+                txpkt.preamble = 16; /* Meshtastic uses 16-symbol preamble */
                 txpkt.no_crc = false;
                 txpkt.no_header = false;
                 
-                MSG("DEBUG: bandwidth=%u (BW_125KHZ=%u), datarate=%u, coderate=%u, tx_mode=%s, count_us=%u\n", 
-                    txpkt.bandwidth, BW_125KHZ, txpkt.datarate, txpkt.coderate,
+                MSG("DEBUG: bandwidth=%u (BW_125KHZ=%u), datarate=%u, coderate=%u, preamble=%u, tx_mode=%s, count_us=%u\n", 
+                    txpkt.bandwidth, BW_125KHZ, txpkt.datarate, txpkt.coderate, txpkt.preamble,
                     (txpkt.tx_mode == IMMEDIATE) ? "IMMEDIATE" : "TIMESTAMPED", txpkt.count_us);
                 
                 jit_result = jit_enqueue(&jit_queue[txpkt.rf_chain], current_concentrator_time, &txpkt, downlink_type);
