@@ -101,7 +101,59 @@ cd meshtastic
 DAEMON_ARGS='-c /home/zaihan/Projects/sx1302_hal/meshtastic/global_conf.json' ./run_ipc_stack.sh --native
 ```
 
-## 5. Quick Health Checks
+## 5. Integration Testing (Stub Mode)
+
+The runtime stub replaces meshtasticd entirely — no firmware build or phone required.
+
+### Build the stub
+
+```sh
+cd meshtastic
+make runtime-stub
+```
+
+### Run integration test
+
+```sh
+cd meshtastic
+./run_ipc_stack.sh --stub
+```
+
+`--stub` is the default mode so `./run_ipc_stack.sh` alone also works.
+
+The stub:
+- Binds the IPC socket at `/tmp/meshtastic-sx1302.sock`
+- Accepts the bridge connection and prints a HELLO handshake log
+- Decodes and prints every received uplink frame (frequency, SF, BW, RSSI, payload hex)
+- Exits cleanly on `SIGINT`/`SIGTERM`
+
+### TX echo test
+
+Set `MTK_STUB_ECHO_DOWNLINK=1` to have the stub immediately echo every uplink back as a
+downlink — exercises the full RX→IPC→TX path without any phone:
+
+```sh
+MTK_STUB_ECHO_DOWNLINK=1 ./run_ipc_stack.sh --stub
+```
+
+### Skip meshbridge (IPC smoke-check only)
+
+```sh
+./run_ipc_stack.sh --stub --skip-daemon
+```
+
+Starts only the stub. Useful for verifying the socket binds correctly before adding hardware.
+
+### Environment overrides
+
+| Variable | Default | Description |
+|---|---|---|
+| `MESHTASTIC_IPC_SOCKET` | `/tmp/meshtastic-sx1302.sock` | Unix socket path |
+| `SOCKET_WAIT_SECONDS` | `2` | Seconds to wait for socket after stub starts |
+| `MTK_STUB_ECHO_DOWNLINK` | unset | Set to `1` to echo uplinks back as downlinks |
+| `STUB_BIN` | `./meshtastic_runtime_stub` | Path to stub binary |
+
+## 6. Quick Health Checks
 
 Check launcher help:
 
