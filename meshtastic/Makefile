@@ -20,6 +20,9 @@ ENABLE_MESHTASTIC_RUNTIME_ADAPTER ?= 0
 ENABLE_MESHTASTIC_RUNTIME_IPC ?= 1
 MESHTASTIC_ALLOW_WEAK_RUNTIME_STUBS ?= 1
 MESHTASTIC_RUNTIME_INCLUDES ?=
+# Optional: path to a GCC @response file containing extra flags for the adapter
+# (use this instead of MESHTASTIC_RUNTIME_INCLUDES when paths contain spaces)
+ADAPTER_FLAGS_FILE ?=
 
 OBJDIR = obj
 
@@ -98,7 +101,8 @@ $(OBJDIR)/MeshtasticRuntimeStub.o: $(MESHTASTIC_PATH)/bridge/MeshtasticRuntimeSt
 	$(CC) -c $(CFLAGS) $< -o $@
 
 $(OBJDIR)/MeshtasticRuntimeAdapter.o: $(MESHTASTIC_PATH)/bridge/MeshtasticRuntimeAdapter.cpp | $(OBJDIR)
-	$(CXX) -c $(CXXFLAGS) -I$(MESHTASTIC_FIRMWARE_PATH)/src $(MESHTASTIC_RUNTIME_INCLUDES) $< -o $@
+	$(CXX) -c $(CXXFLAGS) -I$(MESHTASTIC_FIRMWARE_PATH)/src $(MESHTASTIC_RUNTIME_INCLUDES) \
+		$(if $(ADAPTER_FLAGS_FILE),@$(ADAPTER_FLAGS_FILE),) $< -o $@
 
 $(OBJDIR)/$(APP_NAME).o: $(APP_SRC) | $(OBJDIR)
 	$(CC) -c $(CFLAGS) $(VFLAG) -I$(LGW_PATH)/inc $< -o $@
