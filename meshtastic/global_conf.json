@@ -103,7 +103,7 @@
       ]
     },
     "radio_1": {
-      "enable": true,
+      "enable": false,
       "type": "SX1250",
       "freq": 920688000,
       "rssi_offset": -215.4,
@@ -113,10 +113,10 @@
       "tx_freq_max": 924000000
     },
     "chan_multiSF_All": {"spreading_factor_enable": [5, 6, 7, 8, 9, 10, 11, 12]},
-    "chan_multiSF_0": {"enable": true,  "radio": 1, "if": 0},
-    "chan_multiSF_1": {"enable": true,  "radio": 1, "if": 0},
-    "chan_multiSF_2": {"enable": true,  "radio": 1, "if": 0},
-    "chan_multiSF_3": {"enable": true,  "radio": 1, "if": 0},
+    "chan_multiSF_0": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_1": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_2": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_3": {"enable": true,  "radio": 0, "if": 0},
     "chan_multiSF_4": {"enable": true,  "radio": 0, "if": -563000},
     "chan_multiSF_5": {"enable": true,  "radio": 0, "if": -563000},
     "chan_multiSF_6": {"enable": true,  "radio": 0, "if": -563000},
