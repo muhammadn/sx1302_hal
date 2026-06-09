@@ -104,9 +104,9 @@ extern "C" {
 #define DEFAULT_KEEPALIVE   5           /* default time interval for downstream keep-alive packet */
 #define DEFAULT_STAT        30          /* default time interval for statistics */
 #define PUSH_TIMEOUT_MS     100
-#define PULL_TIMEOUT_MS     20
+#define PULL_TIMEOUT_MS     5
 #define GPS_REF_MAX_AGE     30          /* maximum admitted delay in seconds of GPS loss before considering latest GPS sync unusable */
-#define FETCH_SLEEP_MS      10          /* nb of ms waited when a fetch return no packets */
+#define FETCH_SLEEP_MS      2           /* nb of ms waited when a fetch return no packets */
 #define BEACON_POLL_MS      50          /* time in ms between polling of beacon TX status */
 
 #define PROTOCOL_VERSION    2           /* v1.6 */
@@ -3195,7 +3195,7 @@ void thread_jit(void) {
     int i;
 
     while (!exit_sig && !quit_sig) {
-        wait_ms(10);
+        wait_ms(3); /* 3ms: balances JIT dispatch latency vs USB query rate */
 
         for (i = 0; i < LGW_RF_CHAIN_NB; i++) {
             /* transfer data and metadata to the concentrator, and schedule TX */
@@ -3674,7 +3674,7 @@ void thread_duck(void) {
         /* Sleep to reduce CPU usage - Meshtastic processes packets via 
            callbacks from the uplink thread, so this thread only needs to 
            do periodic housekeeping and MQTT reconnection attempts */
-        wait_ms(10);  /* 10ms: reduces IPC uplink/downlink latency from ~100ms to ~10ms */
+        wait_ms(2);  /* 2ms: IPC flush and downlink detection interval */
     }
     
     MSG("\nINFO: End of Meshtastic processing thread\n");

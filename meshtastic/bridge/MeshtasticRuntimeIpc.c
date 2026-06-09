@@ -334,7 +334,37 @@ static void rx_callback(
     uint32_t freq_hz, uint32_t tmst, uint8_t rf_chain,
     uint32_t bandwidth_hz, uint8_t datarate_sf, uint8_t coderate)
 {
-    queue_uplink_packet(payload, size, rssi, snr, freq_hz, tmst, rf_chain, bandwidth_hz, datarate_sf, coderate);
+    /* Try to send directly on the IPC socket for minimum latency.
+     * Falls back to the queue (flushed by thread_duck) only if the socket
+     * is not yet connected or the send would block. */
+    uint8_t pld[MTK_IPC_MAX_PAYLOAD];
+    size_t off = 0;
+    int rc = -1;
+
+    if (size > 0 && size <= MTK_UPLINK_MAX_BYTES) {
+        if (append_u32le(pld, sizeof(pld), &off, freq_hz)     == 0 &&
+            append_u32le(pld, sizeof(pld), &off, tmst)         == 0 &&
+            append_i16le(pld, sizeof(pld), &off, rssi)         == 0 &&
+            append_floatle(pld, sizeof(pld), &off, snr)        == 0 &&
+            append_u32le(pld, sizeof(pld), &off, bandwidth_hz) == 0 &&
+            append_u8(pld, sizeof(pld), &off, datarate_sf)     == 0 &&
+            append_u8(pld, sizeof(pld), &off, coderate)        == 0 &&
+            append_u8(pld, sizeof(pld), &off, rf_chain)        == 0 &&
+            append_u16le(pld, sizeof(pld), &off, (uint16_t)size) == 0 &&
+            (off + size) <= sizeof(pld)) {
+            memcpy(pld + off, payload, size);
+            off += size;
+            pthread_mutex_lock(&g_ipc_mx);
+            rc = send_frame_locked(MTK_IPC_TYPE_UPLINK, pld, (uint16_t)off);
+            pthread_mutex_unlock(&g_ipc_mx);
+        }
+    }
+
+    if (rc != 0) {
+        /* Direct send failed (not connected yet, or EAGAIN) — fall back to queue */
+        queue_uplink_packet(payload, size, rssi, snr, freq_hz, tmst, rf_chain,
+                            bandwidth_hz, datarate_sf, coderate);
+    }
 }
 
 static int flush_uplink_once(void)

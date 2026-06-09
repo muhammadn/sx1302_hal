@@ -1,0 +1,17 @@
+---
+# meshtasticd config for SX1302 concentrator (IPC bridge mode)
+# LoRa radio is provided by meshbridge via the SX1302 IPC shim — no hardware
+# radio module needed here. MQTT is configured separately via the Meshtastic CLI
+# or app (stored in protobuf state, not this file).
+
+Lora:
+  Module: sim
+
+General:
+  MaxNodes: 200
+  MaxMessageQueue: 100
+  APIPort: 4403          # Meshtastic TCP API port (used by app, CLI, web UI)
+  ConfigDirectory: /etc/meshtasticd/config.d/
+
+Logging:
+  LogLevel: info         # debug, info, warn, error

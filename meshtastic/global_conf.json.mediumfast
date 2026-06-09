@@ -1,0 +1,108 @@
+{
+  "SX130x_conf": {
+    "lorawan_public": false,
+    "com_type": "USB",
+    "com_path": "/dev/ttyACM0",
+    "clksrc": 0,
+    "antenna_gain": 0,
+    "lbt_cfg": {
+      "enable": true,
+      "rssi_target": -80,
+      "chan_cfg": [
+        { "freq_hz": 919125000, "scan_time_us": 128 },
+        { "freq_hz": 919375000, "scan_time_us": 128 },
+        { "freq_hz": 919625000, "scan_time_us": 128 },
+        { "freq_hz": 919875000, "scan_time_us": 128 },
+        { "freq_hz": 920125000, "scan_time_us": 128 },
+        { "freq_hz": 920375000, "scan_time_us": 128 },
+        { "freq_hz": 920625000, "scan_time_us": 128 },
+        { "freq_hz": 920875000, "scan_time_us": 128 },
+        { "freq_hz": 921125000, "scan_time_us": 128 },
+        { "freq_hz": 921375000, "scan_time_us": 128 },
+        { "freq_hz": 921625000, "scan_time_us": 128 },
+        { "freq_hz": 921875000, "scan_time_us": 128 },
+        { "freq_hz": 922125000, "scan_time_us": 128 },
+        { "freq_hz": 922375000, "scan_time_us": 128 },
+        { "freq_hz": 922625000, "scan_time_us": 128 },
+        { "freq_hz": 922875000, "scan_time_us": 128 }
+      ],
+      "sx127x_rssi_offset": -4
+    },
+    "radio_0": {
+      "enable": true,
+      "type": "SX1250",
+      "freq": 922875000,
+      "rssi_offset": -215.4,
+      "rssi_tcomp": {"coeff_a": 0, "coeff_b": 0, "coeff_c": 20.41, "coeff_d": 2162.56, "coeff_e": 0},
+      "tx_enable": true,
+      "tx_freq_min": 919000000,
+      "tx_freq_max": 924000000,
+      "tx_gain_lut": [
+        {"rf_power": 0,  "pa_gain": 0, "pwr_idx": 0},
+        {"rf_power": 12, "pa_gain": 0, "pwr_idx": 15},
+        {"rf_power": 13, "pa_gain": 0, "pwr_idx": 16},
+        {"rf_power": 14, "pa_gain": 0, "pwr_idx": 17},
+        {"rf_power": 15, "pa_gain": 0, "pwr_idx": 19},
+        {"rf_power": 16, "pa_gain": 0, "pwr_idx": 20},
+        {"rf_power": 17, "pa_gain": 0, "pwr_idx": 22},
+        {"rf_power": 18, "pa_gain": 1, "pwr_idx": 1},
+        {"rf_power": 19, "pa_gain": 1, "pwr_idx": 2},
+        {"rf_power": 20, "pa_gain": 1, "pwr_idx": 3},
+        {"rf_power": 21, "pa_gain": 1, "pwr_idx": 4},
+        {"rf_power": 22, "pa_gain": 1, "pwr_idx": 5},
+        {"rf_power": 23, "pa_gain": 1, "pwr_idx": 6},
+        {"rf_power": 24, "pa_gain": 1, "pwr_idx": 9}
+      ]
+    },
+    "radio_1": {
+      "enable": false,
+      "type": "SX1250",
+      "freq": 920688000,
+      "rssi_offset": -215.4,
+      "rssi_tcomp": {"coeff_a": 0, "coeff_b": 0, "coeff_c": 20.41, "coeff_d": 2162.56, "coeff_e": 0},
+      "tx_enable": false,
+      "tx_freq_min": 919000000,
+      "tx_freq_max": 924000000
+    },
+    "chan_multiSF_All": {"spreading_factor_enable": [5, 6, 7, 8, 9, 10, 11, 12]},
+    "chan_multiSF_0": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_1": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_2": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_3": {"enable": true,  "radio": 0, "if": 0},
+    "chan_multiSF_4": {"enable": true,  "radio": 0, "if": -563000},
+    "chan_multiSF_5": {"enable": true,  "radio": 0, "if": -563000},
+    "chan_multiSF_6": {"enable": true,  "radio": 0, "if": -563000},
+    "chan_multiSF_7": {"enable": true,  "radio": 0, "if": -563000},
+    "chan_Lora_std": {
+      "enable": true,
+      "radio": 0,
+      "if": 0,
+      "bandwidth": 250000,
+      "spread_factor": 9
+    },
+    "chan_FSK": {
+      "enable": false,
+      "radio": 0,
+      "if": 0,
+      "bandwidth": 125000,
+      "datarate": 50000
+    }
+  },
+  "mqtt_conf": {
+    "enabled": true,
+    "server": "mqqt.server.com",
+    "port": 1883,
+    "client_id": "meshtastic-concentrator",
+    "username": "",
+    "password": "",
+    "topics": {
+      "publish": "hub/event",
+      "subscribe": "hub/command",
+      "response": "hub/response",
+      "description": "publish: Gateway sends received packets | subscribe: Gateway receives commands | response: Gateway sends command acknowledgments"
+    },
+    "keepalive": 60,
+    "use_tls": false,
+    "ca_cert_file": ""
+  }
+}
