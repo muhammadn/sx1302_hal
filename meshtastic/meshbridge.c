@@ -104,7 +104,7 @@ extern "C" {
 #define DEFAULT_KEEPALIVE   5           /* default time interval for downstream keep-alive packet */
 #define DEFAULT_STAT        30          /* default time interval for statistics */
 #define PUSH_TIMEOUT_MS     100
-#define PULL_TIMEOUT_MS     200
+#define PULL_TIMEOUT_MS     20
 #define GPS_REF_MAX_AGE     30          /* maximum admitted delay in seconds of GPS loss before considering latest GPS sync unusable */
 #define FETCH_SLEEP_MS      10          /* nb of ms waited when a fetch return no packets */
 #define BEACON_POLL_MS      50          /* time in ms between polling of beacon TX status */
@@ -3080,14 +3080,6 @@ void thread_down(void) {
             
             if (duck_rc_inner == 0 && buf_capacity > 0) {
                 MSG("INFO: Meshtastic downlink received (inner loop), size=%u\n", buf_capacity);
-
-                /* Wait for remote node SX1262 to return to RX mode after its RREQ TX.
-                 * remote node finishes TX, then its radio needs ~5-10ms turnaround.
-                 * Gateway processes RREQ and queues RREP very fast, so we delay
-                 * here to ensure remote node is listening before we transmit. */
-                struct timespec dl_delay = {0, 500000000L}; /* 500ms */
-                nanosleep(&dl_delay, NULL);
-                MSG("INFO: Meshtastic downlink delay done, transmitting now\n");
                 
                 /* Build and enqueue packet - same code as outer loop */
                 memset(&txpkt, 0, sizeof(txpkt));
@@ -3682,7 +3674,7 @@ void thread_duck(void) {
         /* Sleep to reduce CPU usage - Meshtastic processes packets via 
            callbacks from the uplink thread, so this thread only needs to 
            do periodic housekeeping and MQTT reconnection attempts */
-        wait_ms(100);  // 10 times per second is sufficient
+        wait_ms(10);  /* 10ms: reduces IPC uplink/downlink latency from ~100ms to ~10ms */
     }
     
     MSG("\nINFO: End of Meshtastic processing thread\n");
