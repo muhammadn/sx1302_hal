@@ -58,7 +58,9 @@ endif
 
 ifeq ($(ENABLE_MESHTASTIC_RUNTIME_ADAPTER),1)
 ifeq ($(strip $(MESHTASTIC_RUNTIME_INCLUDES)),)
-$(error ENABLE_MESHTASTIC_RUNTIME_ADAPTER=1 requires MESHTASTIC_RUNTIME_INCLUDES (Linux daemon/Portduino Meshtastic SDK include paths; this repo alone is not sufficient))
+ifeq ($(strip $(ADAPTER_FLAGS_FILE)),)
+$(error ENABLE_MESHTASTIC_RUNTIME_ADAPTER=1 requires MESHTASTIC_RUNTIME_INCLUDES or ADAPTER_FLAGS_FILE (Linux daemon/Portduino Meshtastic SDK include paths; this repo alone is not sufficient))
+endif
 endif
 ifeq ($(ENABLE_MESHTASTIC_RUNTIME_IPC),1)
 $(error ENABLE_MESHTASTIC_RUNTIME_ADAPTER=1 and ENABLE_MESHTASTIC_RUNTIME_IPC=1 cannot be enabled together)
