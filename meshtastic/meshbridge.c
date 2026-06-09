@@ -3103,14 +3103,29 @@ void thread_down(void) {
                 txpkt.tx_mode = IMMEDIATE;  /* Use IMMEDIATE mode - JIT will find next available slot */
                 downlink_type = JIT_PKT_TYPE_DOWNLINK_CLASS_C;  /* CLASS_C calculates ASAP timing */
                 
-                /* Configure radio parameters */
-                txpkt.rf_chain = 0;
-                txpkt.rf_power = CDPCFG_RF_LORA_TXPOW;
+                /* Configure radio parameters from downlink packet */
+                txpkt.rf_chain = (dl_rf_chain < LGW_RF_CHAIN_NB) ? dl_rf_chain : 0;
+                txpkt.rf_power = (dl_tx_power_dbm > 0 && dl_tx_power_dbm <= 27) ? dl_tx_power_dbm : CDPCFG_RF_LORA_TXPOW;
                 txpkt.modulation = MOD_LORA;
-                txpkt.bandwidth = BW_125KHZ;
-                txpkt.datarate = DR_LORA_SF7;
-                txpkt.coderate = CR_LORA_4_5;
-                txpkt.invert_pol = false; /* CDP is not LoRaWAN — remote node uses normal (non-inverted) IQ */
+                switch (dl_bw_hz) {
+                    case 500000: txpkt.bandwidth = BW_500KHZ; break;
+                    case 250000: txpkt.bandwidth = BW_250KHZ; break;
+                    default:     txpkt.bandwidth = BW_125KHZ; break;
+                }
+                switch (dl_sf) {
+                    case  5: txpkt.datarate = DR_LORA_SF5;  break;
+                    case  6: txpkt.datarate = DR_LORA_SF6;  break;
+                    case  7: txpkt.datarate = DR_LORA_SF7;  break;
+                    case  8: txpkt.datarate = DR_LORA_SF8;  break;
+                    case  9: txpkt.datarate = DR_LORA_SF9;  break;
+                    case 10: txpkt.datarate = DR_LORA_SF10; break;
+                    case 11: txpkt.datarate = DR_LORA_SF11; break;
+                    case 12: txpkt.datarate = DR_LORA_SF12; break;
+                    default: txpkt.datarate = DR_LORA_SF7;  break;
+                }
+                /* RadioLib CR: 5=4/5, 6=4/6, 7=4/7, 8=4/8 → lgw: 1,2,3,4 */
+                txpkt.coderate = (dl_cr >= 5 && dl_cr <= 8) ? (dl_cr - 4) : CR_LORA_4_5;
+                txpkt.invert_pol = false; /* Meshtastic uses normal (non-inverted) IQ */
                 txpkt.preamble = 8;
                 txpkt.no_crc = false;
                 txpkt.no_header = false;
