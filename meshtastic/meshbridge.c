@@ -2840,8 +2840,8 @@ void thread_down(void) {
                     memcpy(txpkt.payload, duck_payload_buf, buf_capacity);
                     txpkt.size = buf_capacity;
 
-                    /* Frequency and timestamp (fallback to CDP defaults if not provided) */
-                    txpkt.freq_hz  = CDPCFG_RF_LORA_FREQ_HZ;
+                    /* Frequency: use IPC-supplied value, fall back to config default */
+                    txpkt.freq_hz = (dl_freq_hz != 0) ? dl_freq_hz : CDPCFG_RF_LORA_FREQ_HZ;
                     
                     /* For Meshtastic packets, use immediate transmission */
                     /* Let JIT queue handle collision avoidance automatically */
