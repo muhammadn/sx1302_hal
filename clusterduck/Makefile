@@ -16,6 +16,13 @@ CROSS_COMPILE ?=
 # Path to ClusterDuck source (contains duck_bridge.h / duck_bridge.cpp).
 # Adjust if ClusterDuck repo is located elsewhere relative to clusterduckd.
 CLUSTERDUCK_PATH ?= .
+# Meshtastic bridge integration (RX-only demux of the shared chan_Lora_std IF
+# chain, see clusterduck/src/clusterduckd.c and clusterduck/src/bridge/Meshtastic*).
+# Default: connect to an external Meshtastic runtime process over the Unix
+# domain IPC socket (see meshtastic/bridge/README.md). Set to 0 to build
+# clusterduckd without any Meshtastic runtime connection (weak stub only).
+ENABLE_MESHTASTIC_RUNTIME_IPC ?= 1
+MESHTASTIC_ALLOW_WEAK_RUNTIME_STUBS ?= 1
 
 OBJDIR = obj
 INCLUDES = $(wildcard inc/*.h)
@@ -32,7 +39,8 @@ CC := $(CROSS_COMPILE)gcc
 AR := $(CROSS_COMPILE)ar
 CXX := $(CROSS_COMPILE)g++
 # C compiler flags (add ClusterDuck include path so duck_bridge.h is found)
-CFLAGS := -O2 -Wall -Wextra -std=c99 -Iinc -I. -I../libtools/inc -I$(CLUSTERDUCK_PATH)/src -I$(CLUSTERDUCK_PATH)/inc/paho.mqtt.c
+CFLAGS := -O2 -Wall -Wextra -std=c99 -Iinc -I. -I../libtools/inc -I$(CLUSTERDUCK_PATH)/src -I$(CLUSTERDUCK_PATH)/inc/paho.mqtt.c \
+	-DMESHTASTIC_ALLOW_WEAK_RUNTIME_STUBS=$(MESHTASTIC_ALLOW_WEAK_RUNTIME_STUBS)
 # C++ compiler flags for duck_bridge.cpp
 CXXFLAGS := -O2 -Wall -Wextra -std=gnu++17 -I$(CLUSTERDUCK_PATH)/src -I$(LGW_PATH)/inc -I../libtools/inc
 
@@ -47,6 +55,13 @@ ifneq ($(wildcard $(LGW_PATH)/inc/config.h),)
   LGW_INC += $(LGW_PATH)/inc/config.h
 endif
 LGW_INC += $(LGW_PATH)/inc/loragw_hal.h
+
+### Meshtastic bridge object selection
+
+MESHTASTIC_IPC_OBJS :=
+ifeq ($(ENABLE_MESHTASTIC_RUNTIME_IPC),1)
+MESHTASTIC_IPC_OBJS += $(OBJDIR)/MeshtasticRuntimeIpc.o
+endif
 
 ### Linking options
 
@@ -109,6 +124,14 @@ $(OBJDIR)/CRC32.o: $(CLUSTERDUCK_PATH)/src/utils/CRC32.cpp | $(OBJDIR)
 	$(CXX) -c $(CXXFLAGS) $< -o $@
 $(OBJDIR)/DuckUtils.o: $(CLUSTERDUCK_PATH)/src/utils/DuckUtils.cpp | $(OBJDIR)
 	$(CXX) -c $(CXXFLAGS) $< -o $@
+
+### Rules to compile the Meshtastic bridge (RX-only chan_Lora_std demux target)
+$(OBJDIR)/MeshtasticBridge.o: $(CLUSTERDUCK_PATH)/src/bridge/MeshtasticBridge.cpp | $(OBJDIR)
+	$(CXX) -c $(CXXFLAGS) $< -o $@
+$(OBJDIR)/MeshtasticSX126xShim.o: $(CLUSTERDUCK_PATH)/src/bridge/MeshtasticSX126xShim.c | $(OBJDIR)
+	$(CC) -c $(CFLAGS) $< -o $@
+$(OBJDIR)/MeshtasticRuntimeIpc.o: $(CLUSTERDUCK_PATH)/src/bridge/MeshtasticRuntimeIpc.c | $(OBJDIR)
+	$(CC) -c $(CFLAGS) $< -o $@
 $(OBJDIR)/duck_payloads.pb.o: $(CLUSTERDUCK_PATH)/src/payloads/duck_payloads.pb.cc | $(OBJDIR)
 	$(CXX) -c $(CXXFLAGS) $< -o $@
 $(OBJDIR)/DuckPayloads.o: $(CLUSTERDUCK_PATH)/src/payloads/DuckPayloads.cpp | $(OBJDIR)
@@ -121,7 +144,7 @@ $(OBJDIR)/$(APP_NAME).o: src/$(APP_NAME).c $(LGW_INC) $(INCLUDES) | $(OBJDIR)
 
 # Link with g++ to ensure proper linking of C++ runtime
 # Using unified ClusterDuckBridge.o instead of old duck_bridge.o and DuckForwarderBridge.o
-$(APP_NAME): $(OBJDIR)/$(APP_NAME).o $(LGW_PATH)/libloragw.a $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(OBJDIR)/duck_payloads.pb.o $(OBJDIR)/DuckPayloads.o
-	$(CXX) -static -L$(LGW_PATH) -L$(LIB_PATH) $< $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(OBJDIR)/duck_payloads.pb.o $(OBJDIR)/DuckPayloads.o $(MQTT_OBJS) -o $@ $(LIBS)
+$(APP_NAME): $(OBJDIR)/$(APP_NAME).o $(LGW_PATH)/libloragw.a $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(OBJDIR)/duck_payloads.pb.o $(OBJDIR)/DuckPayloads.o $(OBJDIR)/MeshtasticBridge.o $(OBJDIR)/MeshtasticSX126xShim.o $(MESHTASTIC_IPC_OBJS)
+	$(CXX) -static -L$(LGW_PATH) -L$(LIB_PATH) $< $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(OBJDIR)/duck_payloads.pb.o $(OBJDIR)/DuckPayloads.o $(OBJDIR)/MeshtasticBridge.o $(OBJDIR)/MeshtasticSX126xShim.o $(MESHTASTIC_IPC_OBJS) $(MQTT_OBJS) -o $@ $(LIBS)
 
 ### EOF

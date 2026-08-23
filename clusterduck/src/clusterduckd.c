@@ -60,6 +60,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "loragw_gps.h"
 #include <MQTTClient.h>
 #include "bridge/ClusterDuckBridge.h"   // Unified bridge C API
+#include "bridge/MeshtasticBridge.h"    // Meshtastic uplink/downlink queue C API
+#include "bridge/MeshtasticSX126xShim.h" // meshtastic_init_and_setup/run_loop/send_data
 
 /* ClusterDuck Protocol initialization */
 #ifdef __cplusplus
@@ -71,6 +73,12 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+/* IF chain index of the shared 250kHz "LoRa service" channel (chan_Lora_std).
+ * Meshtastic RX-only traffic lives on this chain; chains 0-7 (chan_multiSF_0..7)
+ * stay with ClusterDuck Protocol. This mirrors chan_Lora_std always being
+ * configured via lgw_rxif_setconf(8, ...) in parse_SX130x_configuration(). */
+#define MESHTASTIC_LORA_STD_CHAIN 8
 
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE MACROS ------------------------------------------------------- */
@@ -529,6 +537,7 @@ void thread_gps(void);
 void thread_valid(void);
 void thread_spectral_scan(void);
 void thread_duck(void);  /* ClusterDuck processing */
+void thread_meshtastic(void);  /* Meshtastic bridge pump (RX-only) */
 
 /* MQTT Initialization and Connection */
 int mqtt_init_and_connect(void) {
@@ -2023,6 +2032,7 @@ int main(int argc, char ** argv)
     pthread_t thrid_jit;
     pthread_t thrid_ss;
     pthread_t thrid_duck;  /* ClusterDuck processing thread */
+    pthread_t thrid_meshtastic;  /* Meshtastic bridge pump thread */
 
     /* variables to get local copies of measurements */
     uint32_t cp_nb_rx_rcv;
@@ -2199,6 +2209,20 @@ int main(int argc, char ** argv)
     }
     MSG("INFO: [main] ClusterDuck Protocol initialized successfully\n");
 
+    /* Initialize Meshtastic bridge (RX-only: receives on the shared
+     * chan_Lora_std IF chain and forwards packets to the external Meshtastic
+     * runtime process over IPC). Non-fatal if unavailable: the bridge itself
+     * degrades gracefully (see MeshtasticRuntimeIpc.c) unless the operator
+     * sets MESHTASTIC_IPC_REQUIRED=1, so ClusterDuck operation continues
+     * either way. */
+    MSG("INFO: [main] Initializing Meshtastic bridge\n");
+    void* meshtastic_ptr = meshtastic_init_and_setup();
+    if (meshtastic_ptr == NULL) {
+        MSG("WARNING: [main] failed to initialize Meshtastic bridge, continuing without it\n");
+    } else {
+        MSG("INFO: [main] Meshtastic bridge initialized successfully\n");
+    }
+
     /* spawn threads to manage upstream and downstream */
     i = pthread_create(&thrid_up, NULL, (void * (*)(void *))thread_up, NULL);
     if (i != 0) {
@@ -2232,6 +2256,10 @@ int main(int argc, char ** argv)
     if (i != 0) {
         MSG("ERROR: [main] impossible to create ClusterDuck processing thread\n");
         exit(EXIT_FAILURE);
+    }
+    i = pthread_create(&thrid_meshtastic, NULL, (void * (*)(void *))thread_meshtastic, NULL);
+    if (i != 0) {
+        MSG("WARNING: [main] impossible to create Meshtastic bridge thread, continuing without it\n");
     }
 
     /* spawn thread for background spectral scan */
@@ -2601,6 +2629,19 @@ void thread_up(void) {
             if (coderate == 0 || coderate > CR_LORA_4_8) {
                 MSG("WARNING: [%d/%d] Skipping packet with invalid coding rate (%u)\n", 
                     i+1, nb_pkt, coderate);
+                continue;
+            }
+
+            // Demux by IF chain: the shared 250kHz "LoRa service" channel
+            // (chan_Lora_std, chain 8) carries Meshtastic RX traffic; all
+            // other chains (chan_multiSF_0..7) are ClusterDuck Protocol.
+            if (rf_chain == MESHTASTIC_LORA_STD_CHAIN) {
+                MSG("INFO: [%d/%d] Passing packet to Meshtastic bridge (size=%u, rssi=%d, snr=%.1f)\n",
+                           i+1, nb_pkt, size, rssi, snr);
+                mtk_bridge_handle_uplink(payload, size,
+                                         rssi, snr,
+                                         freq_hz, tmst, rf_chain,
+                                         bandwidth_hz, datarate_sf, coderate);
                 continue;
             }
 
@@ -3571,6 +3612,31 @@ void thread_spectral_scan(void) {
         }
     }
     printf("\nINFO: End of Spectral Scan thread\n");
+}
+
+/* -------------------------------------------------------------------------- */
+/* --- THREAD: MESHTASTIC BRIDGE PUMP (RX-only) ----------------------------- */
+
+void thread_meshtastic(void) {
+    MSG("INFO: Meshtastic bridge thread started\n");
+
+    /* Give other threads time to initialize */
+    wait_ms(1000);
+    MSG("INFO: Meshtastic bridge thread starting main loop\n");
+
+    /* meshtastic_run_loop() drives the IPC socket: (re)connects to the
+     * external Meshtastic runtime process, flushes any uplink packets that
+     * couldn't be sent immediately from thread_up's RX callback, and drains
+     * inbound runtime frames. This design is RX-only for now: chan_Lora_std
+     * is never used for ClusterDuck/Meshtastic TX, so there is no downlink
+     * dequeue/JIT-enqueue step here (contrast with thread_down's ClusterDuck
+     * downlink handling). */
+    while (!exit_sig && !quit_sig) {
+        meshtastic_run_loop();
+        wait_ms(2);
+    }
+
+    MSG("\nINFO: End of Meshtastic bridge thread\n");
 }
 
 /* -------------------------------------------------------------------------- */
