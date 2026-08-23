@@ -50,7 +50,7 @@ LGW_INC += $(LGW_PATH)/inc/loragw_hal.h
 
 ### Linking options
 
-LIBS := -lloragw -ltinymt32 -lparson -lbase64 -lrt -lpthread -lm -lpaho-mqtt3c
+LIBS := -lloragw -ltinymt32 -lparson -lbase64 -lrt -lpthread -lm -lpaho-mqtt3c -lprotobuf -latomic
 
 ### General build targets
 
@@ -109,6 +109,10 @@ $(OBJDIR)/CRC32.o: $(CLUSTERDUCK_PATH)/src/utils/CRC32.cpp | $(OBJDIR)
 	$(CXX) -c $(CXXFLAGS) $< -o $@
 $(OBJDIR)/DuckUtils.o: $(CLUSTERDUCK_PATH)/src/utils/DuckUtils.cpp | $(OBJDIR)
 	$(CXX) -c $(CXXFLAGS) $< -o $@
+$(OBJDIR)/duck_payloads.pb.o: $(CLUSTERDUCK_PATH)/src/payloads/duck_payloads.pb.cc | $(OBJDIR)
+	$(CXX) -c $(CXXFLAGS) $< -o $@
+$(OBJDIR)/DuckPayloads.o: $(CLUSTERDUCK_PATH)/src/payloads/DuckPayloads.cpp | $(OBJDIR)
+	$(CXX) -c $(CXXFLAGS) $< -o $@
 
 ### Main program compilation and assembly
 
@@ -117,7 +121,7 @@ $(OBJDIR)/$(APP_NAME).o: src/$(APP_NAME).c $(LGW_INC) $(INCLUDES) | $(OBJDIR)
 
 # Link with g++ to ensure proper linking of C++ runtime
 # Using unified ClusterDuckBridge.o instead of old duck_bridge.o and DuckForwarderBridge.o
-$(APP_NAME): $(OBJDIR)/$(APP_NAME).o $(LGW_PATH)/libloragw.a $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o 
-	$(CXX) -L$(LGW_PATH) -L$(LIB_PATH) $< $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(MQTT_OBJS) -o $@ $(LIBS)
+$(APP_NAME): $(OBJDIR)/$(APP_NAME).o $(LGW_PATH)/libloragw.a $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(OBJDIR)/duck_payloads.pb.o $(OBJDIR)/DuckPayloads.o
+	$(CXX) -static -L$(LGW_PATH) -L$(LIB_PATH) $< $(OBJDIR)/jitqueue.o $(OBJDIR)/ClusterDuckBridge.o $(OBJDIR)/CdpPacket.o $(OBJDIR)/bloomfilter.o $(OBJDIR)/DuckRouter.o $(OBJDIR)/DuckLoRa.o $(OBJDIR)/Init.o $(OBJDIR)/CRC32.o $(OBJDIR)/DuckUtils.o $(OBJDIR)/duck_payloads.pb.o $(OBJDIR)/DuckPayloads.o $(MQTT_OBJS) -o $@ $(LIBS)
 
 ### EOF

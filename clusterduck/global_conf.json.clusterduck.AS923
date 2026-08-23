@@ -52,7 +52,7 @@
       "enable": true,
       "type": "SX1250",
       "freq": 922500000,
-      "rssi_offset": -166,
+      "rssi_offset": -215.4,
       "tx_enable": true,
       "tx_freq_min": 921200000,
       "tx_freq_max": 922800000,
@@ -77,7 +77,7 @@
       "enable": true,
       "type": "SX1250",
       "freq": 921700000,
-      "rssi_offset": -166,
+      "rssi_offset": -215.4,
       "tx_enable": false,
       "tx_freq_min": 921200000,
       "tx_freq_max": 922800000

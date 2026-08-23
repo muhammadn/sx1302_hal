@@ -206,6 +206,11 @@ FILE * log_file = NULL;
 static int     ts_fd = -1;
 static uint8_t ts_addr = 0xFF;
 
+/* Last known-good temperature reading, used as a fallback if a transient I2C
+ * read failure occurs, so that an unrelated sensor glitch does not discard
+ * already successfully fetched RX packets (see lgw_receive) */
+static float last_known_temperature = 25.0;
+
 /* I2C AD5338 handles */
 static int     ad_fd = -1;
 
@@ -1113,8 +1118,14 @@ int lgw_start(void) {
             }
         }
         if (i == sizeof I2C_PORT_TEMP_SENSOR) {
-            printf("ERROR: no temperature sensor found.\n");
-            return LGW_HAL_ERROR;
+            /* Some boards (e.g. non-reference SPI designs) don't expose an
+             * STTS751-compatible sensor on the I2C bus at all. Treat this as
+             * non-fatal: RSSI temperature compensation will be skipped
+             * (lgw_get_temperature/lgw_receive fall back to a fixed value)
+             * instead of preventing the concentrator from starting. */
+            printf("WARNING: no temperature sensor found, RSSI temperature compensation will be disabled.\n");
+            ts_fd = -1;
+            ts_addr = 0xFF;
         }
 
         /* Configure ADC AD338R for full duplex (CN490 reference design) */
@@ -1289,8 +1300,14 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
     /* Apply RSSI temperature compensation */
     res = lgw_get_temperature(&current_temperature);
     if (res != LGW_I2C_SUCCESS) {
-        printf("ERROR: failed to get current temperature\n");
-        return LGW_HAL_ERROR;
+        /* A transient I2C glitch on the temperature sensor is unrelated to the
+         * packets that were just successfully fetched from the SX1302 RX
+         * buffer: don't discard them nor report a fatal error, just fall back
+         * to the last known-good temperature for the RSSI compensation. */
+        printf("WARNING: failed to get current temperature, using last known value (%.1f C)\n", last_known_temperature);
+        current_temperature = last_known_temperature;
+    } else {
+        last_known_temperature = current_temperature;
     }
 
     /* Iterate on the RX buffer to get parsed packets */

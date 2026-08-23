@@ -3,111 +3,194 @@
 	 \____ \| ___ |    (_   _) ___ |/ ___)  _ \
 	 _____) ) ____| | | || |_| ____( (___| | | |
 	(______/|_____)_|_|_| \__)_____)\____)_| |_|
-	  (C)2020 Semtech
 
-SX1302 LoRa Gateway project
-===========================
+MeshBeacon Uplink
+==================
 
-## 1. Core library: libloragw
+**MeshBeacon Uplink** is the gateway software for a Semtech Corecell SX1302
+LoRa concentrator that acts as the **sink (PapaDuck / "SuperDuck")** for a
+[ClusterDuck Protocol](https://github.com/Call-for-Code/ClusterDuckProtocol)
+(CDP) mesh network. MamaDucks and DuckLinks in the field relay sensor and
+message traffic over LoRa; this gateway receives every hop that reaches it,
+de-duplicates and routes the packets, and bridges them out to an MQTT broker
+for consumption by a hub / dashboard.
 
-This directory contains the sources of the library to build a gateway based on
-a Semtech LoRa SX1302 concentrator chip (a.k.a. concentrator).
-Once compiled all the code is contained in the libloragw.a file that will be
-statically linked (ie. integrated in the final executable).
+The project started as a fork of Semtech's reference SX1302 HAL and packet
+forwarder, but the codebase has since moved away from that original
+LoRaWAN-only design. The HAL is now the foundation for two independent
+gateway daemons built on top of it:
 
-The library also comes with few basic tests programs that are used to test the
-different sub-modules of the library.
+* **`clusterduckd`** — the primary daemon. Implements the ClusterDuck
+  Protocol PapaDuck role directly against the SX1302 HAL and forwards
+  received mesh traffic to MQTT.
+* **`meshbridge`** — an optional bridge that lets the same concentrator serve
+  a [Meshtastic](https://meshtastic.org/) mesh instead of/alongside CDP.
 
-Please refer to the readme.md file located in the libloragw directory for
-more details.
+The original Semtech `lora_pkt_fwd` LoRaWAN packet forwarder is still present
+for anyone who needs a plain LoRaWAN Network Server uplink, but it is no
+longer the primary use case of this repository.
 
-## 2. Helper programs
+## Contents
 
-Those programs are included in the project to provide examples on how to use
-the HAL library, and to help the system builder test different parts of it.
+1. [Architecture](#1-architecture)
+2. [Core library: libloragw](#2-core-library-libloragw)
+3. [clusterduckd — the MeshBeacon Uplink gateway daemon](#3-clusterduckd--the-meshbeacon-uplink-gateway-daemon)
+4. [meshbridge — Meshtastic mesh support](#4-meshbridge--meshtastic-mesh-support)
+5. [Legacy: packet_forwarder (LoRaWAN)](#5-legacy-packet_forwarder-lorawan)
+6. [Helper utilities](#6-helper-utilities)
+7. [Hardware](#7-hardware)
+8. [Build, install and run](#8-build-install-and-run)
+9. [Continuous integration & releases](#9-continuous-integration--releases)
+10. [Third party libraries](#10-third-party-libraries)
+11. [Legal notice](#11-legal-notice)
 
-### 2.1. packet_forwarder ###
+## 1. Architecture
 
-The packet forwarder is a program running on the host of a Lora gateway that
-forwards RF packets receive by the concentrator to a server through a IP/UDP
-link, and emits RF packets that are sent by the server.
+```
+        MamaDuck            MamaDuck            DuckLink
+       (field node)         (field node)        (field node)
+             \                   |                   /
+              \                  |                  /
+               \_________________|_________________/
+                                 LoRa
+                                  |
+                                  v
+  +------------------------------------------------------------+
+  |                    MeshBeacon Uplink gateway                |
+  |                                                              |
+  |   +--------------+   USB/SPI   +--------------------------+ |
+  |   | SX1302        |<---------->| libloragw (HAL)          | |
+  |   | Corecell      |            +-----------+--------------+ |
+  |   | concentrator  |                        |                |
+  |   +--------------+                         v                |
+  |                              +--------------------------+    |
+  |                              |  clusterduckd            |    |
+  |                              |  - PapaDuck / CDP stack   |    |
+  |                              |  - DuckRouter + bloom      |    |
+  |                              |    filter de-dup          |    |
+  |                              |  - ClusterDuckBridge       |    |
+  |                              +-------------+--------------+    |
+  |                                            | MQTT               |
+  +--------------------------------------------|--------------------+
+                                                v
+                                    hub/event, hub/command,
+                                     hub/response topics
+                                                |
+                                                v
+                                        MQTT broker / dashboard
+```
 
-	((( Y )))
-	    |
-	    |
-	+- -|- - - - - - - - - - - - -+        xxxxxxxxxxxx          +--------+
-	|+--+-----------+     +------+|       xx x  x     xxx        |        |
-	||              | USB |      ||      xx  Internet  xx        |        |
-	|| Concentrator |<----+ Host |<------xx     or    xx-------->|        |
-	||              | SPI |      ||      xx  Intranet  xx        | Server |
-	|+--------------+     +------+|       xxxx   x   xxxx        |        |
-	|   ^                    ^    |           xxxxxxxx           |        |
-	|   | PPS  +-----+  NMEA |    |                              |        |
-	|   +------| GPS |-------+    |                              +--------+
-	|          +-----+            |
-	|                             |
-	|            Gateway          |
-	+- - - - - - - - - - - - - - -+
+`meshbridge` (see [section 4](#4-meshbridge--meshtastic-mesh-support)) can run
+against the same concentrator in place of, or alongside, `clusterduckd` when
+the mesh is Meshtastic-based instead of CDP-based.
 
-Uplink: radio packets received by the gateway, with metadata added by the
-gateway, forwarded to the server. Might also include gateway status.
+## 2. Core library: libloragw
 
-Downlink: packets generated by the server, with additional metadata, to be
-transmitted by the gateway on the radio channel. Might also include
-configuration data for the gateway.
+Contains the sources of the library used to drive the Semtech LoRa SX1302
+concentrator chip. Once compiled, the code is contained in `libloragw.a`,
+which is statically linked into `clusterduckd`, `meshbridge`, the legacy
+packet forwarder, and the helper utilities below.
 
-Please refer to the readme.md file located in the packet_forwarder directory
-for more details.
+The library also comes with basic test programs used to exercise its
+sub-modules. Refer to the readme.md file located in the [libloragw](libloragw)
+directory for more details.
 
-### 2.2. util_net_downlink ###
+## 3. clusterduckd — the MeshBeacon Uplink gateway daemon
 
-The downlink packet sender is a simple helper program listening on a single
-UDP port, responding to PUSH_DATA and PULL_DATA datagrams with proper ACK, and
-sending downlink JSON packets to the socket, with given frame parameters, at
-regular time interval.
-It is a network packet sender.
+`clusterduckd` (source in [clusterduck](clusterduck)) is a "SuperDuck": a
+PapaDuck that talks to the SX1302 HAL directly instead of running on
+Duck-native embedded hardware. It:
 
-It can also be used as a UDP packet logger to store received uplinks in a
-local CSV file.
+* Receives every LoRa packet reaching the concentrator and hands it to the
+  CDP stack ([CDP.h](clusterduck/src/CDP.h), [Ducks](clusterduck/src/Ducks)).
+* Routes and de-duplicates traffic using `DuckRouter` and a Bloom filter
+  ([routing](clusterduck/src/routing)), same as any CDP node in the mesh.
+* Recognizes the four Duck roles carried in each packet: `PAPA`, `MAMA`,
+  `LINK` (DuckLink) and `DETECTOR` ([DuckTypes.h](clusterduck/src/Ducks/DuckTypes.h)).
+* Bridges accepted uplinks to an MQTT broker, and forwards downlink commands
+  from MQTT back out over LoRa, via the `ClusterDuckBridge` thread-safe C/C++
+  bridge layer ([bridge](clusterduck/src/bridge)).
 
-Please refer to the readme.md file located in the util_net_downlink directory
-for more details.
+MQTT topics, message format and TLS/auth configuration are documented in
+[clusterduck/MQTT_CONFIG.md](clusterduck/MQTT_CONFIG.md). By default the
+gateway publishes received Duck traffic to `hub/event`, accepts downlink
+commands on `hub/command`, and acknowledges them on `hub/response`.
 
-### 2.3. util_chip_id ###
+Region/radio configuration for `clusterduckd` uses the same
+`global_conf.json` format as the packet forwarder — see
+`global_conf.json.clusterduck.AS923` for an example CDP configuration, plus
+the per-region `global_conf.json.sx1250.*` / `global_conf.json.sx1255.*` /
+`global_conf.json.sx1257.*` files for other supported bands.
 
-This utility configures the SX1302 to be able to retrieve its EUI. It can then
-be used as a Gateway ID.
+## 4. meshbridge — Meshtastic mesh support
 
-### 2.4. util_boot ###
+[meshtastic/meshbridge](meshtastic) is an alternative gateway daemon that
+bridges the SX1302 concentrator to `meshtasticd` over a local IPC socket,
+letting the same hardware serve a Meshtastic mesh instead of (or in addition
+to) a ClusterDuck one. The current single-preset architecture and the
+planned multi-preset design (running MediumFast/LongModerate/LongSlow
+simultaneously from one concentrator) are documented in
+[meshtastic/MULTI_PRESET_DESIGN.md](meshtastic/MULTI_PRESET_DESIGN.md).
 
-On used for a USB gateway, this software switches the concentrator in DFU mode
-in order to program its internal STM32 MCU.
+## 5. Legacy: packet_forwarder (LoRaWAN)
 
-### 2.5. util_spectral_scan ###
+[packet_forwarder](packet_forwarder) contains the original Semtech
+`lora_pkt_fwd`, which forwards raw LoRaWAN uplinks from the concentrator to a
+Network Server over UDP, and transmits downlinks scheduled by that server.
+It is kept for anyone who needs a plain LoRaWAN uplink instead of, or
+alongside, the ClusterDuck/Meshtastic gateways above. See
+[packet_forwarder/readme.md](packet_forwarder/readme.md) and
+[packet_forwarder/PROTOCOL.md](packet_forwarder/PROTOCOL.md) for details.
 
-This software allows to scan the spectral band using the additional sx1261 radio
-of the Semtech Corecell reference design.
+## 6. Helper utilities
 
-## 3. Helper scripts
+These programs support development and bring-up of the concentrator; they
+are unchanged from the original HAL project:
 
-### 3.1. tools/reset_lgw.sh
+* **[util_net_downlink](util_net_downlink)** — a simple UDP downlink sender /
+  uplink logger, useful for testing the packet forwarder without a full
+  Network Server.
+* **[util_chip_id](util_chip_id)** — reads back the SX1302 EUI, usable as a
+  Gateway ID.
+* **[util_boot](util_boot)** — switches a USB concentrator into DFU mode to
+  reprogram its STM32 bridge MCU.
+* **[util_spectral_scan](util_spectral_scan)** — scans the band using the
+  auxiliary SX1261 radio on the Corecell reference design.
+* **[tools/reset_lgw.sh](tools/reset_lgw.sh)** — performs GPIO reset/power-up
+  of the SX1302 before any of the programs above access it. Must be located
+  alongside the executable that uses it.
 
-This script is used to perform the basic initialization of the SX1302 through
-the GPIOs defined by the CoreCell reference design.
-It gets the SX1302 out of reset and set the Power Enable pin.
-This script is called by every program provided here which accesses the SX1302.
-It MUST be located in the same directory as the executable of the program.
+## 7. Hardware
 
-## 4. Compile, install and run instructions
+MeshBeacon Uplink targets the **Semtech Corecell SX1302 LoRa concentrator**
+reference design (SX1302 baseband chip paired with SX1250/SX125x radio
+front-ends, and an optional SX1261 for spectral scan / Listen-Before-Talk).
+The host communicates with the concentrator over **SPI or USB** — USB boards
+carry an onboard STM32 MCU acting as a USB↔SPI bridge (firmware in
+[mcu_bin](mcu_bin), flashed via `util_boot`).
 
-All the libraries and test programs can be compiled and installed from the
-root directory of this project.
+Supported regions/radio combinations ship as `global_conf.json.*` files at
+the root of [clusterduck](clusterduck) and [packet_forwarder](packet_forwarder):
+EU868, US915, AS923, CN490 (including a full-duplex CN490 variant), on both
+SPI and USB interfaces.
 
-### 4.1. Clean and compile everything
+## 8. Build, install and run
+
+All libraries and daemons are built from the root of the project.
+
+### 8.1. Clean and compile everything
 
 `make clean all`
 
-### 4.2. Install executables and associated files in one directory
+This builds `libtools`, `libloragw`, `packet_forwarder`, `util_net_downlink`,
+`util_chip_id`, `util_boot`, `util_spectral_scan` and `clusterduck`
+(`clusterduckd`) in dependency order.
+
+To build only the MeshBeacon Uplink daemon and its dependencies:
+
+`make clusterduck`
+
+### 8.2. Install executables on the gateway host
 
 First edit the target.cfg file located in the root directory of the project
 in order to configure where the executables have to be installed.
@@ -148,7 +231,7 @@ Now that everything is set, the following command can be invoked:<br/>
 In order to also install the packet forwarder JSON configuration files:<br/>
 `make install_conf`
 
-### 4.3. Cross-compile from a PC
+### 8.3. Cross-compile from a PC
 
 * Add the path to the binaries of the compiler corresponding to the target
 platform to the `PATH` environment variable.
@@ -167,7 +250,10 @@ set, do:
 
 `make clean all`
 
-## 5. USB
+See [section 9](#9-continuous-integration--releases) for the arm64/mipsel
+cross-compile invocations used in CI, which can be reproduced locally.
+
+### 8.4. USB
 
 This project provides support for both SPI or USB gateways. For USB interface,
 the concentrator board has a STM32 MCU with which the linux host will
@@ -178,18 +264,55 @@ The STM32 MCU has to be programmed with the binary provided in the `mcu_bin`
 directory of this project. For more details about how to flash it, please refer
 to the `util_boot/readme.md` instructions.
 
-Each test utility of the project can be used using the `-u -d /dev/ttyACMx'
-command line option, or with the proper configuration in the packet forwarder
-global_conf.json file.
+Each daemon/utility of the project can be used using the `-u -d /dev/ttyACMx'
+command line option, or with the proper configuration in the `global_conf.json`
+file (`com_type` / `com_path`).
 
-## 6. Third party libraries
+## 9. Continuous integration & releases
 
-This project relies on several third-party open source libraries, that can be
-found in the `libtools` directory.
-* parson: a JSON parser (http://kgabis.github.com/parson/)
-* tinymt32: a pseudo-random generator (only used for debug/test)
+Pushing a `v*` tag triggers [.github/workflows/action.yaml](.github/workflows/action.yaml),
+which cross-compiles `clusterduckd` for two deployment targets inside
+`debian:bookworm` containers:
 
-## 7. Changelog
+* **linux-arm64** (`aarch64-linux-gnu-`) — e.g. Raspberry Pi 64-bit hosts.
+* **linux-mipsel-24kec** (`mipsel-linux-gnu-`, MIPS32r2/24KEc) — common
+  router SoCs.
+
+Both jobs install `libusb-1.0`, `libpaho-mqtt` and `libprotobuf` for the
+target architecture, build with `make clusterduck`, and upload the resulting
+`clusterduckd-<version>-<target>` binaries as release artifacts on a GitHub
+Release created for the tag.
+
+## 10. Third party libraries
+
+In addition to the original HAL dependencies in the `libtools` directory
+(`parson` JSON parser, `tinymt32` pseudo-random generator), `clusterduckd`
+depends on:
+
+* **Eclipse Paho MQTT C client** (`libpaho-mqtt`) — MQTT bridge to the hub.
+* **Protocol Buffers** (`libprotobuf`) — Duck payload encoding
+  ([duck_payloads.proto](clusterduck/src/payloads/duck_payloads.proto)).
+* **libusb-1.0** — USB transport to Corecell USB boards.
+
+## 11. Legal notice
+
+MeshBeacon Uplink is built on top of Semtech's SX1302 CoreCell HAL and
+packet forwarder reference design. The information presented in this
+project documentation does not form part of any quotation or contract, is
+believed to be accurate and reliable, and may be changed without notice. No
+liability will be accepted by the publisher for any consequence of its use.
+Publication does not convey nor imply any license under patent or other
+industrial or intellectual property rights.
+
+SEMTECH PRODUCTS ARE NOT DESIGNED, INTENDED, AUTHORIZED OR WARRANTED TO BE
+SUITABLE FOR USE IN LIFE-SUPPORT APPLICATIONS, DEVICES OR SYSTEMS OR OTHER
+CRITICAL APPLICATIONS. See [LICENSE.TXT](LICENSE.TXT) for full license terms.
+
+*EOF*
+
+<!-- Historical / superseded changelog below (Semtech SX1302 HAL, pre-fork) -->
+
+## Appendix. Original Semtech HAL changelog
 
 ### v2.1.0 ###
 
@@ -365,26 +488,6 @@ calibration
 
 * HAL: Initial private release for TAP program
 
-## 8. Legal notice
-
-The information presented in this project documentation does not form part of
-any quotation or contract, is believed to be accurate and reliable and may be
-changed without notice. No liability will be accepted by the publisher for any
-consequence of its use. Publication thereof does not convey nor imply any
-license under patent or other industrial or intellectual property rights.
-Semtech assumes no responsibility or liability whatsoever for any failure or
-unexpected operation resulting from misuse, neglect improper installation,
-repair or improper handling or unusual physical or electrical stress
-including, but not limited to, exposure to parameters beyond the specified
-maximum ratings or operation outside the specified range.
-
-SEMTECH PRODUCTS ARE NOT DESIGNED, INTENDED, AUTHORIZED OR WARRANTED TO BE
-SUITABLE FOR USE IN LIFE-SUPPORT APPLICATIONS, DEVICES OR SYSTEMS OR OTHER
-CRITICAL APPLICATIONS. INCLUSION OF SEMTECH PRODUCTS IN SUCH APPLICATIONS IS
-UNDERSTOOD TO BE UNDERTAKEN SOLELY AT THE CUSTOMER'S OWN RISK. Should a
-customer purchase or use Semtech products for any such unauthorized
-application, the customer shall indemnify and hold Semtech and its officers,
-employees, subsidiaries, affiliates, and distributors harmless against all
-claims, costs damages and attorney fees which could arise.
-
-*EOF*
+*(end of inherited Semtech HAL changelog — see [11. Legal notice](#11-legal-notice)
+above for current license terms, and git tags/releases for MeshBeacon Uplink's
+own changelog going forward)*

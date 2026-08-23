@@ -48,6 +48,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include <netdb.h>          /* gai_strerror */
 
 #include <pthread.h>
+#include <sched.h>      /* sched_get_priority_max, SCHED_FIFO */
 
 #include "trace.h"
 #include "jitqueue.h"
@@ -85,7 +86,7 @@ extern "C" {
 #define CDPCFG_RF_LORA_FREQ_HZ 922800000
 #define CDPCFG_RF_LORA_BW 125.0f
 #define CDPCFG_RF_LORA_SF 7
-#define CDPCFG_RF_LORA_TXPOW 14
+#define CDPCFG_RF_LORA_TXPOW 27
 #define CDPCFG_RF_LORA_GAIN 0
 
 /* -------------------------------------------------------------------------- */
@@ -235,7 +236,15 @@ static int sock_down; /* socket for downstream traffic */
 static struct timeval push_timeout_half = {0, (PUSH_TIMEOUT_MS * 500)}; /* cut in half, critical for throughput */
 
 /* hardware access control and correction */
-pthread_mutex_t mx_concent = PTHREAD_MUTEX_INITIALIZER; /* control access to the concentrator */
+/* NOTE: initialized in main() with the PTHREAD_PRIO_INHERIT protocol so that
+ * a low-priority thread holding it (thread_duck, thread_valid, thread_ss,
+ * thread_down) temporarily inherits thread_up's priority instead of blocking
+ * the time-critical RX fetch for an unbounded amount of time. This matters
+ * on SPI-connected concentrators (unlike the USB eval board, where the SPI
+ * transactions are handled by a dedicated MCU) since the host CPU itself has
+ * to service the SX1302 RX FIFO in time, and this process runs several other
+ * threads that also contend for the same concentrator mutex. */
+pthread_mutex_t mx_concent; /* control access to the concentrator */
 static pthread_mutex_t mx_xcorr = PTHREAD_MUTEX_INITIALIZER; /* control access to the XTAL correction */
 static bool xtal_correct_ok = false; /* set true when XTAL correction is stable enough */
 static double xtal_correct = 1.0;
@@ -564,6 +573,13 @@ int mqtt_init_and_connect(void) {
     MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
     conn_opts.keepAliveInterval = mqtt_keepalive;
     conn_opts.cleansession = 1;
+    /* Bound the worst-case blocking time of MQTTClient_connect(). This
+     * function (and mqtt_reconnect_with_backoff()) runs on thread_duck,
+     * which shares CPU time with the ClusterDuck routing loop and, on a
+     * flaky/cellular backhaul, Paho's default 30s connectTimeout can stall
+     * that thread long enough to starve the concentrator polling threads
+     * (RX buffer overflow/desync, stale TX packets in the JIT queue). */
+    conn_opts.connectTimeout = 5; /* seconds */
     
     // Set username and password if provided
     if (strlen(mqtt_username) > 0) {
@@ -754,11 +770,17 @@ static int mqtt_publish_queued_messages(void) {
             return published;
         }
 
-        /* Wait for delivery with timeout - mutex is NOT held here */
-        rc = MQTTClient_waitForCompletion(mqtt_client, token, 5000L);
-        if (rc != MQTTCLIENT_SUCCESS) {
-            MSG("WARNING: [MQTT] Queued message delivery timeout after 5 seconds\n");
-        }
+        /* Do NOT block here waiting for broker delivery confirmation:
+         * MQTTClient_publishMessage() already hands the message off to the
+         * Paho client's background network thread, which manages QoS 1
+         * acknowledgement/retry on its own. This function runs on
+         * thread_duck, which is shared with time-critical ClusterDuck/JIT
+         * housekeeping; a slow/flaky backhaul previously caused
+         * MQTTClient_waitForCompletion() to block this thread for up to 5s
+         * per queued message (serially), starving the concentrator polling
+         * threads long enough to overflow/desync the SX1302 RX buffer
+         * (observed as "no syncword found") and to let scheduled TX packets
+         * go stale in the JIT queue ("Packet dropped"). */
 
         free(topic_copy);
         free(payload_copy);
@@ -2155,6 +2177,19 @@ int main(int argc, char ** argv)
         printf("INFO: concentrator EUI: 0x%016" PRIx64 "\n", eui);
     }
 
+    /* Initialize the concentrator mutex with priority inheritance to bound
+     * the time thread_up can be blocked behind lower-priority threads that
+     * also access the concentrator over SPI (see mx_concent declaration). */
+    {
+        pthread_mutexattr_t mx_concent_attr;
+        pthread_mutexattr_init(&mx_concent_attr);
+        if (pthread_mutexattr_setprotocol(&mx_concent_attr, PTHREAD_PRIO_INHERIT) != 0) {
+            MSG("WARNING: [main] priority-inherit mutex protocol not supported, falling back to a regular mutex\n");
+        }
+        pthread_mutex_init(&mx_concent, &mx_concent_attr);
+        pthread_mutexattr_destroy(&mx_concent_attr);
+    }
+
     /* Initialize ClusterDuck Protocol */
     MSG("INFO: [main] Initializing ClusterDuck Protocol\n");
     void* hub_ptr = hub_init_and_setup();
@@ -2169,6 +2204,19 @@ int main(int argc, char ** argv)
     if (i != 0) {
         MSG("ERROR: [main] impossible to create upstream thread\n");
         exit(EXIT_FAILURE);
+    }
+    /* Best-effort: give the RX fetch thread real-time priority so it gets
+     * scheduled promptly and can drain the SX1302 RX FIFO/burst-read the SPI
+     * bus before it overflows or gets corrupted mid-transfer. Requires
+     * CAP_SYS_NICE (root); harmless if it fails, just less deterministic
+     * latency on a busy host. */
+    {
+        struct sched_param sp;
+        memset(&sp, 0, sizeof sp);
+        sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
+        if (pthread_setschedparam(thrid_up, SCHED_FIFO, &sp) != 0) {
+            MSG("WARNING: [main] could not set real-time priority on upstream thread (need root?), continuing with default scheduling\n");
+        }
     }
     i = pthread_create(&thrid_down, NULL, (void * (*)(void *))thread_down, NULL);
     if (i != 0) {
@@ -2414,6 +2462,15 @@ void thread_up(void) {
     /* report management variable */
     bool send_report = false;
 
+    /* Count consecutive lgw_receive() failures. A single transient HAL/SPI
+     * error should not take the whole daemon down (there is no systemd unit
+     * with Restart=always for clusterduckd, so exit() here just means "stop
+     * receiving packets until someone notices and restarts it manually").
+     * Only bail out if failures are persistent, which indicates a genuinely
+     * dead concentrator link rather than a one-off glitch. */
+    int consecutive_rx_errors = 0;
+#define MAX_CONSECUTIVE_RX_ERRORS 10
+
     /* Zaihan's code */
     const uint8_t *payload;    // usually pkt->payload
     uint16_t size;             // usually pkt->size
@@ -2462,9 +2519,17 @@ void thread_up(void) {
         nb_pkt = lgw_receive(NB_PKT_MAX, rxpkt);
         pthread_mutex_unlock(&mx_concent);
         if (nb_pkt == LGW_HAL_ERROR) {
-            MSG("ERROR: [up] failed packet fetch, exiting\n");
-            exit(EXIT_FAILURE);
+            consecutive_rx_errors += 1;
+            MSG("WARNING: [up] packet fetch failed (%d/%d consecutive), retrying\n",
+                consecutive_rx_errors, MAX_CONSECUTIVE_RX_ERRORS);
+            if (consecutive_rx_errors >= MAX_CONSECUTIVE_RX_ERRORS) {
+                MSG("ERROR: [up] %d consecutive packet fetch failures, exiting\n", consecutive_rx_errors);
+                exit(EXIT_FAILURE);
+            }
+            wait_ms(FETCH_SLEEP_MS);
+            continue;
         }
+        consecutive_rx_errors = 0;
 
         /* check if there are status report to send */
         send_report = report_ready; /* copy the variable so it doesn't change mid-function */

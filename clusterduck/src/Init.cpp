@@ -2,6 +2,7 @@
 #include <queue>
 #include "routing/RouteJSON.h"
 #include "bridge/ClusterDuckBridge.h"
+#include "payloads/DuckPayloads.h"
 
 // Forward declare C functions for MQTT publishing
 extern "C" {
@@ -86,8 +87,77 @@ void processMessageFromDucks(CdpPacket cdp_packet) {
             pathArray.add(sduid.c_str());
         }
     } else {
-        // For non-routing packets, include the raw message
-        doc["payload"]["Message"] = payload.c_str();
+        // For non-routing packets, include the raw message.
+        // gps/alert/status/health payloads may be protobuf-encoded (see
+        // duck_payloads.proto) instead of the legacy plain-text format;
+        // detect that via the leading format-marker byte and reconstruct
+        // the equivalent legacy text so downstream consumers of
+        // payload.Message keep working unchanged.
+        const uint8_t *rawData = reinterpret_cast<const uint8_t *>(cdp_packet.data.data());
+        size_t rawLength = cdp_packet.data.size();
+        std::string message = payload;
+
+        if (duckpayload::isProtobuf(rawData, rawLength)) {
+            switch (cdp_packet.topic) {
+                case topics::gps: {
+                    duckcdp::GpsReading gps;
+                    if (duckpayload::decodeGps(rawData, rawLength, gps)) {
+                        message = duckpayload::gpsToLegacyText(gps);
+                    }
+                    break;
+                }
+                case topics::alert: {
+                    duckcdp::SosAlert sos;
+                    if (duckpayload::decodeSos(rawData, rawLength, sos)) {
+                        message = duckpayload::sosToLegacyText(sos);
+                    }
+                    break;
+                }
+                case topics::status: {
+                    // `status` carries a StatusReport envelope, which wraps
+                    // either a SosAlert (phone-triggered SOS) or a StatusMsg
+                    // (phone-composed message / device "Roger" ack) -- unlike
+                    // `alert`, which always carries a bare SosAlert.
+                    duckcdp::StatusReport report;
+                    if (duckpayload::decodeStatusReport(rawData, rawLength, report)) {
+                        message = duckpayload::statusReportToLegacyText(report);
+                    }
+                    break;
+                }
+                case topics::health: {
+                    duckcdp::HealthStatus health;
+                    if (duckpayload::decodeHealth(rawData, rawLength, health)) {
+                        message = duckpayload::healthToLegacyText(health);
+                    }
+                    break;
+                }
+                case 26: {  // MamaDuck-to-MamaDuck (MTALK); example-sketch-only
+                            // topic, not part of the core topics:: enum.
+                    duckcdp::MTalk mtalk;
+                    if (duckpayload::decodeMTalk(rawData, rawLength, mtalk)) {
+                        message = duckpayload::mtalkToLegacyText(mtalk);
+                    }
+                    break;
+                }
+                case 22:
+                case 23:
+                case 24:
+                case 25: {  // Operator/mesh free-text channels (message/dcmd,
+                            // alert, emergency broadcast, personal message);
+                            // example-sketch-only topics, not part of the
+                            // core topics:: enum.
+                    duckcdp::OpText opText;
+                    if (duckpayload::decodeOpText(rawData, rawLength, opText)) {
+                        message = opText.text();
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        doc["payload"]["Message"] = message.c_str();
     }
 
     std::string jsonstat;

@@ -1,0 +1,124 @@
+name: Build clusterduckd
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Cross-compiled inside a Debian (bookworm) container so that the
+      # toolchain and dev libraries come from the Debian archive rather
+      # than Ubuntu. arm64 is a full Debian release architecture, so no
+      # extra "ports" repo is needed - just enable the foreign arch.
+      - name: Build clusterduckd for arm64 (Debian cross-compile)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            debian:bookworm \
+            bash -c "
+              set -euo pipefail
+              dpkg --add-architecture arm64
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                crossbuild-essential-arm64 \
+                libusb-1.0-0-dev:arm64 \
+                libpaho-mqtt-dev:arm64 \
+                libprotobuf-dev:arm64
+              make clusterduck ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+            "
+
+      - name: Fix file ownership
+        run: sudo chown -R "$(id -u)":"$(id -g)" .
+
+      - name: Verify binary architecture
+        run: file clusterduck/clusterduckd
+
+      - name: Package artifact
+        run: |
+          VERSION="${{ github.ref_name }}"
+          ARTIFACT="clusterduckd-${VERSION}-linux-arm64"
+          mkdir -p dist
+          cp clusterduck/clusterduckd "dist/${ARTIFACT}"
+          echo "ARTIFACT_PATH=dist/${ARTIFACT}" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clusterduckd-linux-arm64
+          path: ${{ env.ARTIFACT_PATH }}
+
+  build-mips:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Cross-compiled inside a Debian (bookworm) container, targeting the
+      # MIPS24KEc core (little-endian mipsel, MIPS32r2) used by common
+      # router SoCs. Plain big-endian "mips" was dropped as a Debian
+      # release architecture after bullseye, so mipsel is used instead.
+      - name: Build clusterduckd for MIPS24KEc (Debian cross-compile)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            debian:bookworm \
+            bash -c "
+              set -euo pipefail
+              dpkg --add-architecture mipsel
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                crossbuild-essential-mipsel \
+                libusb-1.0-0-dev:mipsel \
+                libpaho-mqtt-dev:mipsel \
+                libprotobuf-dev:mipsel
+              make clusterduck ARCH=mips CROSS_COMPILE=mipsel-linux-gnu- \
+                CC='mipsel-linux-gnu-gcc -EL -mips32r2 -march=24kec -mtune=24kec' \
+                CXX='mipsel-linux-gnu-g++ -EL -mips32r2 -march=24kec -mtune=24kec'
+            "
+
+      - name: Fix file ownership
+        run: sudo chown -R "$(id -u)":"$(id -g)" .
+
+      - name: Verify binary architecture
+        run: file clusterduck/clusterduckd
+
+      - name: Package artifact
+        run: |
+          VERSION="${{ github.ref_name }}"
+          ARTIFACT="clusterduckd-${VERSION}-linux-mipsel-24kec"
+          mkdir -p dist
+          cp clusterduck/clusterduckd "dist/${ARTIFACT}"
+          echo "ARTIFACT_PATH=dist/${ARTIFACT}" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clusterduckd-linux-mipsel-24kec
+          path: ${{ env.ARTIFACT_PATH }}
+
+  release:
+    needs: [build-arm64, build-mips]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

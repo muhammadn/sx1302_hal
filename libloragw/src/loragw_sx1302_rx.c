@@ -179,7 +179,14 @@ int rx_buffer_fetch(rx_buffer_t * self) {
                 DEBUG_PRINTF("INFO: syncword found at idx %d\n", idx);
                 break;
             } else {
-                printf("INFO: syncword not found at idx %d\n", idx);
+                /* NOTE: this is on the hot RX polling path. Logging this per
+                 * byte (potentially 100+ synchronous printf/syscalls to
+                 * stdout/journald for a single corrupted buffer) can itself
+                 * stall the thread long enough to worsen the very RX FIFO
+                 * starvation that caused the corruption in the first place.
+                 * Keep it DEBUG-only; the single summary WARNING below is
+                 * enough to know it happened. */
+                DEBUG_PRINTF("INFO: syncword not found at idx %d\n", idx);
                 idx += 1;
             }
         }
