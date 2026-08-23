@@ -80,6 +80,11 @@ extern "C" {
  * configured via lgw_rxif_setconf(8, ...) in parse_SX130x_configuration(). */
 #define MESHTASTIC_LORA_STD_CHAIN 8
 
+/* Fallback TX frequency used only if the Meshtastic runtime's downlink frame
+ * omits freq_hz (should not happen in practice); matches the MediumFast
+ * preset centered on chan_Lora_std in the merged AS923 config. */
+#define MESHTASTIC_DEFAULT_TX_FREQ_HZ 921125000
+
 /* -------------------------------------------------------------------------- */
 /* --- PRIVATE MACROS ------------------------------------------------------- */
 
@@ -3618,21 +3623,168 @@ void thread_spectral_scan(void) {
 /* --- THREAD: MESHTASTIC BRIDGE PUMP (RX-only) ----------------------------- */
 
 void thread_meshtastic(void) {
+    /* configuration and metadata for an outbound (downlink) packet */
+    struct lgw_pkt_tx_s txpkt;
+
+    /* buffer for a possible downlink from the Meshtastic runtime */
+    uint8_t mtk_payload_buf[256];
+    uint16_t buf_capacity = sizeof(mtk_payload_buf);
+    uint32_t dl_freq_hz = 0;
+    uint32_t dl_tmst = 0;
+    int16_t dl_tx_power_dbm = 0;
+    uint32_t dl_bw_hz = 0;
+    uint8_t dl_sf = 0;
+    uint8_t dl_cr = 0;
+    uint8_t dl_rf_chain = 0;
+
+    /* Just In Time downlink */
+    uint32_t current_concentrator_time;
+    enum jit_error_e jit_result = JIT_ERROR_OK;
+    enum jit_pkt_type_e downlink_type;
+    enum jit_error_e warning_result = JIT_ERROR_OK;
+    int32_t warning_value = 0;
+    uint8_t tx_lut_idx = 0;
+    int i;
+int mtk_rc;
+
     MSG("INFO: Meshtastic bridge thread started\n");
 
-    /* Give other threads time to initialize */
+    /* Give other threads time to initialize. jit_queue[]/jit_queue_init()
+     * is owned and initialized once by thread_down() before its own main
+     * loop -- it is a shared resource between the ClusterDuck and
+     * Meshtastic downlink paths, so it must NOT be re-initialized here. */
     wait_ms(1000);
     MSG("INFO: Meshtastic bridge thread starting main loop\n");
 
-    /* meshtastic_run_loop() drives the IPC socket: (re)connects to the
-     * external Meshtastic runtime process, flushes any uplink packets that
-     * couldn't be sent immediately from thread_up's RX callback, and drains
-     * inbound runtime frames. This design is RX-only for now: chan_Lora_std
-     * is never used for ClusterDuck/Meshtastic TX, so there is no downlink
-     * dequeue/JIT-enqueue step here (contrast with thread_down's ClusterDuck
-     * downlink handling). */
     while (!exit_sig && !quit_sig) {
+        /* meshtastic_run_loop() drives the IPC socket: (re)connects to the
+         * external Meshtastic runtime process, flushes any uplink packets
+         * that couldn't be sent immediately from thread_up's RX callback,
+         * and drains inbound runtime frames -- including downlink requests,
+         * which get queued into the bridge's internal downlink queue via
+         * mtk_bridge_enqueue_downlink_ext(). */
         meshtastic_run_loop();
+
+        /* Try to pop a downlink from Meshtastic and push it into the JIT
+         * TX queue (ported from meshtastic/meshbridge.c's thread_down()). */
+        mtk_rc = mtk_bridge_pop_downlink(mtk_payload_buf, &buf_capacity,
+                                          &dl_freq_hz, &dl_tmst, &dl_tx_power_dbm,
+                                          &dl_bw_hz, &dl_sf, &dl_cr, &dl_rf_chain);
+
+        if (mtk_rc == 0 && buf_capacity > 0) {
+            MSG("INFO: Meshtastic downlink received, size=%u\n", buf_capacity);
+
+            memset(&txpkt, 0, sizeof(txpkt));
+            memcpy(txpkt.payload, mtk_payload_buf, buf_capacity);
+            txpkt.size = buf_capacity;
+
+            /* Frequency: use IPC-supplied value, fall back to the
+             * MediumFast default if the runtime somehow omitted it. */
+            txpkt.freq_hz = (dl_freq_hz != 0) ? dl_freq_hz : MESHTASTIC_DEFAULT_TX_FREQ_HZ;
+
+            /* Meshtastic downlinks are always sent ASAP; let the JIT queue
+             * schedule the next free slot on the target radio. */
+            txpkt.count_us = 0;
+            txpkt.tx_mode = IMMEDIATE;
+
+            /* RF chain and power. Note: dl_rf_chain, if provided by the
+             * runtime, may echo the uplink's IF chain index (8), which is
+             * >= LGW_RF_CHAIN_NB and therefore clamped to 0 here -- the
+             * only tx_enable=true radio in the merged config. */
+            txpkt.rf_chain = (dl_rf_chain < LGW_RF_CHAIN_NB) ? dl_rf_chain : 0;
+            txpkt.rf_power = (dl_tx_power_dbm != 0) ? (int8_t)dl_tx_power_dbm : CDPCFG_RF_LORA_TXPOW;
+
+            txpkt.modulation = MOD_LORA;
+
+            /* Bandwidth: map Hz value from IPC to HAL enum */
+            switch (dl_bw_hz) {
+                case 500000: txpkt.bandwidth = BW_500KHZ; break;
+                case 250000: txpkt.bandwidth = BW_250KHZ; break;
+                case 125000: txpkt.bandwidth = BW_125KHZ; break;
+                default:
+                    MSG("WARNING: [meshtastic] unknown dl_bw_hz=%u, falling back to BW_250KHZ\n", dl_bw_hz);
+                    txpkt.bandwidth = BW_250KHZ;
+                    break;
+            }
+
+            /* Spreading factor: IPC sends raw SF number (5-12) */
+            switch (dl_sf) {
+                case  5: txpkt.datarate = DR_LORA_SF5;  break;
+                case  6: txpkt.datarate = DR_LORA_SF6;  break;
+                case  7: txpkt.datarate = DR_LORA_SF7;  break;
+                case  8: txpkt.datarate = DR_LORA_SF8;  break;
+                case  9: txpkt.datarate = DR_LORA_SF9;  break;
+                case 10: txpkt.datarate = DR_LORA_SF10; break;
+                case 11: txpkt.datarate = DR_LORA_SF11; break;
+                case 12: txpkt.datarate = DR_LORA_SF12; break;
+                default:
+                    MSG("WARNING: [meshtastic] unknown dl_sf=%u, falling back to SF9\n", dl_sf);
+                    txpkt.datarate = DR_LORA_SF9;
+                    break;
+            }
+
+            /* Coding rate: IPC may send RadioLib format (5=CR4/5 .. 8=CR4/8)
+             * or lgw format (1=CR4/5 .. 4=CR4/8) -- handle both. */
+            if (dl_cr >= 5 && dl_cr <= 8) {
+                txpkt.coderate = dl_cr - 4;
+            } else {
+                switch (dl_cr) {
+                    case 1: txpkt.coderate = CR_LORA_4_5; break;
+                    case 2: txpkt.coderate = CR_LORA_4_6; break;
+                    case 3: txpkt.coderate = CR_LORA_4_7; break;
+                    case 4: txpkt.coderate = CR_LORA_4_8; break;
+                    default:
+                        txpkt.coderate = CR_LORA_4_5;
+                        break;
+                }
+            }
+            txpkt.preamble = 16; /* Meshtastic uses 16-symbol preamble */
+            txpkt.invert_pol = false; /* Meshtastic uses normal (non-inverted) IQ */
+            txpkt.no_crc = false;
+            txpkt.no_header = false;
+
+            MSG("DEBUG: [meshtastic] TX freq=%u sf=%u bw_hz=%u cr=%u preamble=%u pwr=%d size=%u\n",
+                txpkt.freq_hz, dl_sf, dl_bw_hz, dl_cr, txpkt.preamble, txpkt.rf_power, txpkt.size);
+            downlink_type = JIT_PKT_TYPE_DOWNLINK_CLASS_C;
+
+            jit_result = warning_result = JIT_ERROR_OK;
+            warning_value = 0;
+
+            if ((txpkt.freq_hz < tx_freq_min[txpkt.rf_chain]) || (txpkt.freq_hz > tx_freq_max[txpkt.rf_chain])) {
+                jit_result = JIT_ERROR_TX_FREQ;
+                MSG("ERROR: [meshtastic] Packet REJECTED, unsupported frequency - %u (min:%u,max:%u)\n",
+                    txpkt.freq_hz, tx_freq_min[txpkt.rf_chain], tx_freq_max[txpkt.rf_chain]);
+            }
+
+            if (jit_result == JIT_ERROR_OK) {
+                i = get_tx_gain_lut_index(txpkt.rf_chain, txpkt.rf_power, &tx_lut_idx);
+                if ((i < 0) || (txlut[txpkt.rf_chain].lut[tx_lut_idx].rf_power != txpkt.rf_power)) {
+                    warning_result = JIT_ERROR_TX_POWER;
+                    warning_value = (int32_t)txlut[txpkt.rf_chain].lut[tx_lut_idx].rf_power;
+                    MSG("WARNING: [meshtastic] Requested TX power is not supported (%ddBm), actual power used: %ddBm\n",
+                        txpkt.rf_power, warning_value);
+                    txpkt.rf_power = txlut[txpkt.rf_chain].lut[tx_lut_idx].rf_power;
+                }
+            }
+
+            if (jit_result == JIT_ERROR_OK) {
+                pthread_mutex_lock(&mx_concent);
+                lgw_get_instcnt(&current_concentrator_time);
+                pthread_mutex_unlock(&mx_concent);
+                jit_result = jit_enqueue(&jit_queue[txpkt.rf_chain], current_concentrator_time, &txpkt, downlink_type);
+                if (jit_result != JIT_ERROR_OK) {
+                    MSG("ERROR: [meshtastic] Packet REJECTED (jit error=%d)\n", jit_result);
+                } else {
+                    jit_result = warning_result;
+                    pthread_mutex_lock(&mx_meas_dw);
+                    meas_nb_tx_requested += 1;
+                    pthread_mutex_unlock(&mx_meas_dw);
+                }
+            }
+
+            buf_capacity = sizeof(mtk_payload_buf);
+        }
+
         wait_ms(2);
     }
 

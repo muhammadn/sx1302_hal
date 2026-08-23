@@ -54,7 +54,7 @@
       "freq": 922500000,
       "rssi_offset": -215.4,
       "tx_enable": true,
-      "tx_freq_min": 921200000,
+      "tx_freq_min": 920900000,
       "tx_freq_max": 922800000,
       "tx_gain_lut": [
         {"rf_power": 0,  "pa_gain": 0, "pwr_idx": 0},
