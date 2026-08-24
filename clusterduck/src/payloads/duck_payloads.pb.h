@@ -587,6 +587,7 @@ class SosAlert final :
     kSpdDkmhFieldNumber = 7,
     kHdgDegFieldNumber = 8,
     kBattPctFieldNumber = 9,
+    kSatsFieldNumber = 11,
   };
   // .duckcdp.SosOrigin origin = 1;
   void clear_origin();
@@ -669,6 +670,15 @@ class SosAlert final :
   void _internal_set_batt_pct(uint32_t value);
   public:
 
+  // uint32 sats = 11;
+  void clear_sats();
+  uint32_t sats() const;
+  void set_sats(uint32_t value);
+  private:
+  uint32_t _internal_sats() const;
+  void _internal_set_sats(uint32_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:duckcdp.SosAlert)
  private:
   class _Internal;
@@ -686,6 +696,7 @@ class SosAlert final :
     uint32_t spd_dkmh_;
     uint32_t hdg_deg_;
     uint32_t batt_pct_;
+    uint32_t sats_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -1985,6 +1996,26 @@ inline void SosAlert::_internal_set_batt_pct(uint32_t value) {
 inline void SosAlert::set_batt_pct(uint32_t value) {
   _internal_set_batt_pct(value);
   // @@protoc_insertion_point(field_set:duckcdp.SosAlert.batt_pct)
+}
+
+// uint32 sats = 11;
+inline void SosAlert::clear_sats() {
+  _impl_.sats_ = 0u;
+}
+inline uint32_t SosAlert::_internal_sats() const {
+  return _impl_.sats_;
+}
+inline uint32_t SosAlert::sats() const {
+  // @@protoc_insertion_point(field_get:duckcdp.SosAlert.sats)
+  return _internal_sats();
+}
+inline void SosAlert::_internal_set_sats(uint32_t value) {
+  
+  _impl_.sats_ = value;
+}
+inline void SosAlert::set_sats(uint32_t value) {
+  _internal_set_sats(value);
+  // @@protoc_insertion_point(field_set:duckcdp.SosAlert.sats)
 }
 
 // -------------------------------------------------------------------

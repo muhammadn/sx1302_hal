@@ -72,6 +72,13 @@ message SosAlert {
   uint32 hdg_deg = 8;
 
   uint32 batt_pct = 9; // device battery percentage, 0-100
+
+  // Satellite count at the time of this alert, 0 if unknown (e.g.
+  // gps_source == GPS_SOURCE_PHONE, where the device has no onboard fix
+  // info) -- same meaning as GpsReading.sats above. Field number 11 to
+  // match the firmware's copy of this schema (which reserves 10 for a
+  // rssi_dbm field not yet present here).
+  uint32 sats = 11;
 }
 
 // Periodic health/status report transmitted on the `health` topic.
