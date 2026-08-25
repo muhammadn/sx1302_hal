@@ -341,6 +341,7 @@ class GpsReading final :
     kHdgDegFieldNumber = 8,
     kSatsFieldNumber = 9,
     kBattPctFieldNumber = 10,
+    kRssiDbmFieldNumber = 11,
   };
   // bool has_fix = 1;
   void clear_has_fix();
@@ -432,6 +433,15 @@ class GpsReading final :
   void _internal_set_batt_pct(uint32_t value);
   public:
 
+  // sint32 rssi_dbm = 11;
+  void clear_rssi_dbm();
+  int32_t rssi_dbm() const;
+  void set_rssi_dbm(int32_t value);
+  private:
+  int32_t _internal_rssi_dbm() const;
+  void _internal_set_rssi_dbm(int32_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:duckcdp.GpsReading)
  private:
   class _Internal;
@@ -450,6 +460,7 @@ class GpsReading final :
     uint32_t hdg_deg_;
     uint32_t sats_;
     uint32_t batt_pct_;
+    int32_t rssi_dbm_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -587,6 +598,7 @@ class SosAlert final :
     kSpdDkmhFieldNumber = 7,
     kHdgDegFieldNumber = 8,
     kBattPctFieldNumber = 9,
+    kRssiDbmFieldNumber = 10,
   };
   // .duckcdp.SosOrigin origin = 1;
   void clear_origin();
@@ -669,6 +681,15 @@ class SosAlert final :
   void _internal_set_batt_pct(uint32_t value);
   public:
 
+  // sint32 rssi_dbm = 10;
+  void clear_rssi_dbm();
+  int32_t rssi_dbm() const;
+  void set_rssi_dbm(int32_t value);
+  private:
+  int32_t _internal_rssi_dbm() const;
+  void _internal_set_rssi_dbm(int32_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:duckcdp.SosAlert)
  private:
   class _Internal;
@@ -686,6 +707,7 @@ class SosAlert final :
     uint32_t spd_dkmh_;
     uint32_t hdg_deg_;
     uint32_t batt_pct_;
+    int32_t rssi_dbm_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -1803,6 +1825,26 @@ inline void GpsReading::set_batt_pct(uint32_t value) {
   // @@protoc_insertion_point(field_set:duckcdp.GpsReading.batt_pct)
 }
 
+// sint32 rssi_dbm = 11;
+inline void GpsReading::clear_rssi_dbm() {
+  _impl_.rssi_dbm_ = 0;
+}
+inline int32_t GpsReading::_internal_rssi_dbm() const {
+  return _impl_.rssi_dbm_;
+}
+inline int32_t GpsReading::rssi_dbm() const {
+  // @@protoc_insertion_point(field_get:duckcdp.GpsReading.rssi_dbm)
+  return _internal_rssi_dbm();
+}
+inline void GpsReading::_internal_set_rssi_dbm(int32_t value) {
+  
+  _impl_.rssi_dbm_ = value;
+}
+inline void GpsReading::set_rssi_dbm(int32_t value) {
+  _internal_set_rssi_dbm(value);
+  // @@protoc_insertion_point(field_set:duckcdp.GpsReading.rssi_dbm)
+}
+
 // -------------------------------------------------------------------
 
 // SosAlert
@@ -1985,6 +2027,26 @@ inline void SosAlert::_internal_set_batt_pct(uint32_t value) {
 inline void SosAlert::set_batt_pct(uint32_t value) {
   _internal_set_batt_pct(value);
   // @@protoc_insertion_point(field_set:duckcdp.SosAlert.batt_pct)
+}
+
+// sint32 rssi_dbm = 10;
+inline void SosAlert::clear_rssi_dbm() {
+  _impl_.rssi_dbm_ = 0;
+}
+inline int32_t SosAlert::_internal_rssi_dbm() const {
+  return _impl_.rssi_dbm_;
+}
+inline int32_t SosAlert::rssi_dbm() const {
+  // @@protoc_insertion_point(field_get:duckcdp.SosAlert.rssi_dbm)
+  return _internal_rssi_dbm();
+}
+inline void SosAlert::_internal_set_rssi_dbm(int32_t value) {
+  
+  _impl_.rssi_dbm_ = value;
+}
+inline void SosAlert::set_rssi_dbm(int32_t value) {
+  _internal_set_rssi_dbm(value);
+  // @@protoc_insertion_point(field_set:duckcdp.SosAlert.rssi_dbm)
 }
 
 // -------------------------------------------------------------------

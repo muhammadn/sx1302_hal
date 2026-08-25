@@ -108,6 +108,10 @@ std::string gpsToLegacyText(const duckcdp::GpsReading &reading) {
     std::snprintf(buf, sizeof(buf), ",HDG:%u", reading.hdg_deg());
     out += buf;
   }
+  if (reading.rssi_dbm() != 0) {
+    std::snprintf(buf, sizeof(buf), ",RSSI:%d", reading.rssi_dbm());
+    out += buf;
+  }
   std::snprintf(buf, sizeof(buf), ",BATT:%d", reading.batt_pct());
   out += buf;
   return out;
@@ -136,6 +140,10 @@ std::string sosToLegacyText(const duckcdp::SosAlert &alert) {
     out += ",GPS:" + std::string(gpsSourceToString(alert.gps_source()));
   }
 
+  if (alert.rssi_dbm() != 0) {
+    std::snprintf(buf, sizeof(buf), ",RSSI:%d", alert.rssi_dbm());
+    out += buf;
+  }
   std::snprintf(buf, sizeof(buf), ",BATT:%d", alert.batt_pct());
   out += buf;
   return out;
