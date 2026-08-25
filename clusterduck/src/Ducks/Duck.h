@@ -67,6 +67,13 @@ class Duck {
      */
     int sendData(uint8_t topic, const std::string data, const std::array<uint8_t,8> targetDevice = PAPADUCK_DUID) {
       int err = DUCK_ERR_NONE;
+      // encrypted_cmd used to be the one reserved topic exempted here (the
+      // PapaDuck hub relays an operator's end-to-end encrypted downlink
+      // command through this public API -- see clusterduckd.c's
+      // mqtt_message_arrived() and MamaDuck.h's encrypted_cmd receive
+      // handler) -- now moot since encrypted_cmd (and the other crypto
+      // transports) moved out of reservedTopic into topics, so they no
+      // longer fail this check to begin with.
       if (topic < reservedTopic::max_reserved) {
         logerr_ln("ERROR send data failed, topic is reserved.");
         return DUCKPACKET_ERR_TOPIC_INVALID;
@@ -102,6 +109,8 @@ class Duck {
     */
     int sendData(uint8_t topic, const uint8_t* data, int length, const std::array<uint8_t,8> targetDevice = PAPADUCK_DUID) {
       int err = DUCK_ERR_NONE;
+      // See the std::string overload above -- encrypted_cmd no longer needs
+      // an exemption here now that it's moved out of reservedTopic.
       if (topic < reservedTopic::max_reserved) {
         logerr_ln("ERROR send data failed, topic is reserved.");
         return DUCKPACKET_ERR_TOPIC_INVALID;

@@ -23,8 +23,8 @@ class RouteJSON {
          * @param sourceDevice the source device DUID
          */
         RouteJSON(Duid targetDevice, Duid sourceDevice) {
-            json["origin"] = duckutils::toString(sourceDevice);
-            json["destination"] = duckutils::toString(targetDevice);
+            json["origin"] = duckutils::arrayToHexString(sourceDevice);
+            json["destination"] = duckutils::arrayToHexString(targetDevice);
             json["path"].as<ArduinoJson::JsonArray>();
 
             std::string log;
@@ -70,14 +70,10 @@ class RouteJSON {
             return json.as<std::string>();
         }
         Duid getOrigin(){
-            Duid originDuid;
-            std::copy(origin.begin(), origin.end(), originDuid.begin());
-            return originDuid;
+            return duckutils::hexStringToArray<uint8_t, DUID_LENGTH>(origin);
         }
         Duid getDestination(){
-            Duid destinationDuid;
-            std::copy(destination.begin(), destination.end(), destinationDuid.begin());
-            return destinationDuid;
+            return duckutils::hexStringToArray<uint8_t, DUID_LENGTH>(destination);
         }
 
         /**
@@ -87,7 +83,7 @@ class RouteJSON {
          * @return the newly modified Arduino JSON document
          */
         std::string addToPath(Duid deviceId){
-            objPath.push_back(duckutils::toString(deviceId));
+            objPath.push_back(duckutils::arrayToHexString(deviceId));
             json["path"].to<ArduinoJson::JsonArray>(); //.to erases content of the field in the doc, but .as does not modify the doc at all.
             updateJsonPath(); //so we will manually copy the local obj path to the doc
 #ifdef CDP_LOG_DEBUG
@@ -100,10 +96,9 @@ class RouteJSON {
         }
 
         std::optional<Duid> getlastInPath(){
-            Duid lastDuid;
             if(objPath.size() > 0){
                 auto last = objPath[objPath.size()-1];
-                std::copy(last.begin(), last.end(),lastDuid.begin());
+                Duid lastDuid = duckutils::hexStringToArray<uint8_t, DUID_LENGTH>(last);
 
                 std::string log;
                 serializeJson(json, log);

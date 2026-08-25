@@ -3,6 +3,7 @@
 #include "routing/RouteJSON.h"
 #include "bridge/ClusterDuckBridge.h"
 #include "payloads/DuckPayloads.h"
+#include "utils/safe_base64.h"
 
 // Forward declare C functions for MQTT publishing
 extern "C" {
@@ -97,6 +98,35 @@ void processMessageFromDucks(CdpPacket cdp_packet) {
         size_t rawLength = cdp_packet.data.size();
         std::string message = payload;
 
+        // sealed_uplink/encrypted_data carry a
+        // cleartext, AAD-authenticated real-topic byte as the first byte of
+        // the data section (see Duck::sendSealedData()/sendEncryptedData(),
+        // meshbeacon-firmware's src/Ducks/Duck.h), followed by
+        // ephemeralPublicKey||nonce||ciphertext||tag (or
+        // nonce||ciphertext||tag for encrypted_data). Recover that real
+        // topic into eventType and record which encrypted transport this
+        // came in on via payload.transport -- ProcessMqttMessage.php
+        // (OpenDMS) needs both to rebuild the AAD and pick
+        // unsealFromDuck() vs decryptFromDuck(). Without this,
+        // every encrypted uplink (including an encrypted SOS) is reported
+        // with eventType=="sealed_uplink"/"encrypted_data", payload.transport
+        // is never set, decryption is never attempted, and the operator sees
+        // the raw base64 ciphertext instead of the parsed SOS/alert/status
+        // data.
+        std::string realTopicName;
+        if ((cdp_packet.topic == topics::sealed_uplink ||
+             cdp_packet.topic == topics::encrypted_data) &&
+            !payload.empty()) {
+            CdpPacket realTopicPacket;
+            realTopicPacket.topic = static_cast<uint8_t>(payload[0]);
+            realTopicName = realTopicPacket.topicToString();
+            doc["eventType"] = realTopicName.c_str();
+            doc["payload"]["transport"] = cdpTopic.c_str();
+            message = payload.substr(1);
+            rawData = reinterpret_cast<const uint8_t *>(message.data());
+            rawLength = message.size();
+        }
+
         if (duckpayload::isProtobuf(rawData, rawLength)) {
             switch (cdp_packet.topic) {
                 case topics::gps: {
@@ -157,7 +187,29 @@ void processMessageFromDucks(CdpPacket cdp_packet) {
             }
         }
 
-        doc["payload"]["Message"] = message.c_str();
+        // `message` may still be an opaque binary blob here -- e.g. a
+        // sealed_uplink/encrypted_data ciphertext or an identity_announce
+        // raw public key, none of which are protobuf-decodable text. Only
+        // the ciphertext/key bytes themselves are ever opaque; the CDP
+        // topic byte is always sent in the clear by the firmware, so we
+        // don't need to special-case any particular reserved topic here --
+        // we just detect whether what we're about to embed in a JSON
+        // string is safe printable text, and base64-encode it if not.
+        const unsigned char *msgBytes = reinterpret_cast<const unsigned char *>(message.data());
+        if (is_safe_json_text(msgBytes, message.size())) {
+            doc["payload"]["Message"] = message.c_str();
+        } else {
+            std::vector<char> encoded(safe_b64_encoded_len(message.size()) + 1);
+            int encodedLen = safe_b64_encode(msgBytes, message.size(), encoded.data(), encoded.size());
+            if (encodedLen < 0) {
+                printf("[HUB] ERROR: failed to base64-encode binary payload (topic=%d, size=%zu)\n",
+                       cdp_packet.topic, message.size());
+                doc["payload"]["Message"] = "";
+            } else {
+                doc["payload"]["Message"] = encoded.data();
+                doc["payload"]["encoding"] = "base64";
+            }
+        }
     }
 
     std::string jsonstat;

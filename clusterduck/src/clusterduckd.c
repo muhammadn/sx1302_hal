@@ -53,7 +53,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 #include "trace.h"
 #include "jitqueue.h"
 #include "parson.h"
-#include "base64.h"
+#include "utils/safe_base64.h"
 #include "loragw_hal.h"
 #include "loragw_aux.h"
 #include "loragw_reg.h"
@@ -418,14 +418,42 @@ int mqtt_message_arrived(void *context, char *topicName, int topicLen, MQTTClien
         const char *target_str = json_object_get_string(root_obj, "target");
         double topic_num = json_object_get_number(root_obj, "topic");
         const char *cmd_message = json_object_get_string(root_obj, "message");
-        
-        if (target_str == NULL || topic_num < 20 || cmd_message == NULL) {
-            MSG("WARNING: [MQTT] Invalid command format. Required: {\"target\":\"BROADCAST|DEVICEID\",\"topic\":20-255,\"message\":\"text\"}\n");
+        const char *encoding_str = json_object_get_string(root_obj, "encoding");
+
+        // Topics 0-19 are reserved for the CDP protocol itself (ping, pong,
+        // rreq/rrep, encrypted_cmd, sealed_uplink, ...) and are normally not
+        // operator-selectable -- except encrypted_cmd (topic 8), which is
+        // exactly how an operator sends an end-to-end encrypted downlink
+        // command (see duckcrypto::decryptFromPeer() on the Duck side).
+        bool topicAllowed = (topic_num >= 20) || ((uint8_t)topic_num == 8);
+
+        if (target_str == NULL || !topicAllowed || cmd_message == NULL) {
+            MSG("WARNING: [MQTT] Invalid command format. Required: {\"target\":\"BROADCAST|DEVICEID\",\"topic\":8 or 20-255,\"message\":\"text\"}\n");
             json_value_free(root_value);
             free(payload_str);
             MQTTClient_freeMessage(&message);
             MQTTClient_free(topicName);
             return 1;
+        }
+
+        // Optional {"encoding":"base64"} lets the operator send a raw
+        // binary command payload (e.g. a pre-encrypted encrypted_cmd
+        // blob) as base64 text over JSON/MQTT. Decoding is fully
+        // validated up front -- malformed base64 is rejected with an
+        // error response, it can never crash the daemon.
+        unsigned char decoded_message[512];
+        int decoded_len = -1;
+        bool useDecoded = (encoding_str != NULL) && (strcasecmp(encoding_str, "base64") == 0);
+        if (useDecoded) {
+            decoded_len = safe_b64_decode(cmd_message, strlen(cmd_message), decoded_message, sizeof(decoded_message));
+            if (decoded_len < 0) {
+                MSG("WARNING: [MQTT] Invalid base64 in command message, rejecting\n");
+                json_value_free(root_value);
+                free(payload_str);
+                MQTTClient_freeMessage(&message);
+                MQTTClient_free(topicName);
+                return 1;
+            }
         }
         
         // Parse target device ID
@@ -445,9 +473,10 @@ int mqtt_message_arrived(void *context, char *topicName, int topicLen, MQTTClien
         
         // Send command to MamaDucks
         uint8_t topic = (uint8_t)topic_num;
-        int cmd_len = strlen(cmd_message);
+        const char *send_message = useDecoded ? (const char *)decoded_message : cmd_message;
+        int cmd_len = useDecoded ? decoded_len : (int)strlen(cmd_message);
         
-        MSG("[MQTT] Sending command: topic=%d, message='%s', length=%d\n", topic, cmd_message, cmd_len);
+        MSG("[MQTT] Sending command: topic=%d, length=%d%s\n", topic, cmd_len, useDecoded ? " (base64-decoded)" : "");
 
         /* --- Command deduplication: drop identical commands within the rate-limit window --- */
         //pthread_mutex_lock(&cmd_dedup_mutex);
@@ -480,7 +509,7 @@ int mqtt_message_arrived(void *context, char *topicName, int topicLen, MQTTClien
         //}
         /* --- End deduplication --- */
 
-        int result = hub_send_data(topic, cmd_message, cmd_len, target_device);
+        int result = hub_send_data(topic, send_message, cmd_len, target_device);
         
         // Send acknowledgment response
         char response[512];

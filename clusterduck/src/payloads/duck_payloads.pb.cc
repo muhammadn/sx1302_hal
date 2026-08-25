@@ -56,6 +56,7 @@ PROTOBUF_CONSTEXPR SosAlert::SosAlert(
   , /*decltype(_impl_.hdg_deg_)*/0u
   , /*decltype(_impl_.batt_pct_)*/0u
   , /*decltype(_impl_.rssi_dbm_)*/0
+  , /*decltype(_impl_.sats_)*/0u
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct SosAlertDefaultTypeInternal {
   PROTOBUF_CONSTEXPR SosAlertDefaultTypeInternal()
@@ -179,6 +180,7 @@ const uint32_t TableStruct_duck_5fpayloads_2eproto::offsets[] PROTOBUF_SECTION_V
   PROTOBUF_FIELD_OFFSET(::duckcdp::SosAlert, _impl_.hdg_deg_),
   PROTOBUF_FIELD_OFFSET(::duckcdp::SosAlert, _impl_.batt_pct_),
   PROTOBUF_FIELD_OFFSET(::duckcdp::SosAlert, _impl_.rssi_dbm_),
+  PROTOBUF_FIELD_OFFSET(::duckcdp::SosAlert, _impl_.sats_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::duckcdp::HealthStatus, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -228,11 +230,11 @@ const uint32_t TableStruct_duck_5fpayloads_2eproto::offsets[] PROTOBUF_SECTION_V
 static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, -1, sizeof(::duckcdp::GpsReading)},
   { 17, -1, -1, sizeof(::duckcdp::SosAlert)},
-  { 33, -1, -1, sizeof(::duckcdp::HealthStatus)},
-  { 41, -1, -1, sizeof(::duckcdp::MTalk)},
-  { 50, -1, -1, sizeof(::duckcdp::StatusMsg)},
-  { 62, -1, -1, sizeof(::duckcdp::StatusReport)},
-  { 71, -1, -1, sizeof(::duckcdp::OpText)},
+  { 34, -1, -1, sizeof(::duckcdp::HealthStatus)},
+  { 42, -1, -1, sizeof(::duckcdp::MTalk)},
+  { 51, -1, -1, sizeof(::duckcdp::StatusMsg)},
+  { 63, -1, -1, sizeof(::duckcdp::StatusReport)},
+  { 72, -1, -1, sizeof(::duckcdp::OpText)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -252,36 +254,37 @@ const char descriptor_table_protodef_duck_5fpayloads_2eproto[] PROTOBUF_SECTION_
   "\0162\027.duckcdp.GpsNoFixReason\022\016\n\006lat_e7\030\004 \001"
   "(\021\022\016\n\006lng_e7\030\005 \001(\021\022\r\n\005alt_m\030\006 \001(\021\022\020\n\010spd"
   "_dkmh\030\007 \001(\r\022\017\n\007hdg_deg\030\010 \001(\r\022\014\n\004sats\030\t \001"
-  "(\r\022\020\n\010batt_pct\030\n \001(\r\022\020\n\010rssi_dbm\030\013 \001(\021\"\335"
+  "(\r\022\020\n\010batt_pct\030\n \001(\r\022\020\n\010rssi_dbm\030\013 \001(\021\"\353"
   "\001\n\010SosAlert\022\"\n\006origin\030\001 \001(\0162\022.duckcdp.So"
   "sOrigin\022&\n\ngps_source\030\002 \001(\0162\022.duckcdp.Gp"
   "sSource\022\017\n\007has_gps\030\003 \001(\010\022\016\n\006lat_e7\030\004 \001(\021"
   "\022\016\n\006lng_e7\030\005 \001(\021\022\r\n\005alt_m\030\006 \001(\021\022\020\n\010spd_d"
   "kmh\030\007 \001(\r\022\017\n\007hdg_deg\030\010 \001(\r\022\020\n\010batt_pct\030\t"
-  " \001(\r\022\020\n\010rssi_dbm\030\n \001(\021\"4\n\014HealthStatus\022\017"
-  "\n\007counter\030\001 \001(\r\022\023\n\013free_memory\030\002 \001(\005\"D\n\005"
-  "MTalk\022 \n\004kind\030\001 \001(\0162\022.duckcdp.MTalkKind\022"
-  "\013\n\003mid\030\002 \001(\t\022\014\n\004text\030\003 \001(\t\"\177\n\tStatusMsg\022"
-  "\"\n\003src\030\001 \001(\0162\025.duckcdp.StatusMsgSrc\022\017\n\007u"
-  "rgency\030\002 \001(\t\022\017\n\007has_gps\030\003 \001(\010\022\016\n\006lat_e7\030"
-  "\004 \001(\021\022\016\n\006lng_e7\030\005 \001(\021\022\014\n\004text\030\006 \001(\t\"]\n\014S"
-  "tatusReport\022 \n\003sos\030\001 \001(\0132\021.duckcdp.SosAl"
-  "ertH\000\022!\n\003msg\030\002 \001(\0132\022.duckcdp.StatusMsgH\000"
-  "B\010\n\006report\"\026\n\006OpText\022\014\n\004text\030\001 \001(\t*M\n\tGp"
-  "sSource\022\023\n\017GPS_SOURCE_NONE\020\000\022\025\n\021GPS_SOUR"
-  "CE_DEVICE\020\001\022\024\n\020GPS_SOURCE_PHONE\020\002*[\n\016Gps"
-  "NoFixReason\022\023\n\017GPS_REASON_NONE\020\000\022\030\n\024GPS_"
-  "REASON_NO_SIGNAL\020\001\022\032\n\026GPS_REASON_NO_RESP"
-  "ONSE\020\002*P\n\tSosOrigin\022\026\n\022SOS_ORIGIN_UNKNOW"
-  "N\020\000\022\025\n\021SOS_ORIGIN_DEVICE\020\001\022\024\n\020SOS_ORIGIN"
-  "_PHONE\020\002*)\n\tMTalkKind\022\r\n\tMTALK_MSG\020\000\022\r\n\t"
-  "MTALK_ACK\020\001*_\n\014StatusMsgSrc\022\032\n\026STATUS_MS"
-  "G_SRC_UNKNOWN\020\000\022\030\n\024STATUS_MSG_SRC_PHONE\020"
-  "\001\022\031\n\025STATUS_MSG_SRC_DEVICE\020\002b\006proto3"
+  " \001(\r\022\020\n\010rssi_dbm\030\n \001(\021\022\014\n\004sats\030\013 \001(\r\"4\n\014"
+  "HealthStatus\022\017\n\007counter\030\001 \001(\r\022\023\n\013free_me"
+  "mory\030\002 \001(\005\"D\n\005MTalk\022 \n\004kind\030\001 \001(\0162\022.duck"
+  "cdp.MTalkKind\022\013\n\003mid\030\002 \001(\t\022\014\n\004text\030\003 \001(\t"
+  "\"\177\n\tStatusMsg\022\"\n\003src\030\001 \001(\0162\025.duckcdp.Sta"
+  "tusMsgSrc\022\017\n\007urgency\030\002 \001(\t\022\017\n\007has_gps\030\003 "
+  "\001(\010\022\016\n\006lat_e7\030\004 \001(\021\022\016\n\006lng_e7\030\005 \001(\021\022\014\n\004t"
+  "ext\030\006 \001(\t\"]\n\014StatusReport\022 \n\003sos\030\001 \001(\0132\021"
+  ".duckcdp.SosAlertH\000\022!\n\003msg\030\002 \001(\0132\022.duckc"
+  "dp.StatusMsgH\000B\010\n\006report\"\026\n\006OpText\022\014\n\004te"
+  "xt\030\001 \001(\t*M\n\tGpsSource\022\023\n\017GPS_SOURCE_NONE"
+  "\020\000\022\025\n\021GPS_SOURCE_DEVICE\020\001\022\024\n\020GPS_SOURCE_"
+  "PHONE\020\002*[\n\016GpsNoFixReason\022\023\n\017GPS_REASON_"
+  "NONE\020\000\022\030\n\024GPS_REASON_NO_SIGNAL\020\001\022\032\n\026GPS_"
+  "REASON_NO_RESPONSE\020\002*P\n\tSosOrigin\022\026\n\022SOS"
+  "_ORIGIN_UNKNOWN\020\000\022\025\n\021SOS_ORIGIN_DEVICE\020\001"
+  "\022\024\n\020SOS_ORIGIN_PHONE\020\002*)\n\tMTalkKind\022\r\n\tM"
+  "TALK_MSG\020\000\022\r\n\tMTALK_ACK\020\001*_\n\014StatusMsgSr"
+  "c\022\032\n\026STATUS_MSG_SRC_UNKNOWN\020\000\022\030\n\024STATUS_"
+  "MSG_SRC_PHONE\020\001\022\031\n\025STATUS_MSG_SRC_DEVICE"
+  "\020\002b\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_duck_5fpayloads_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_duck_5fpayloads_2eproto = {
-    false, false, 1276, descriptor_table_protodef_duck_5fpayloads_2eproto,
+    false, false, 1290, descriptor_table_protodef_duck_5fpayloads_2eproto,
     "duck_payloads.proto",
     &descriptor_table_duck_5fpayloads_2eproto_once, nullptr, 0, 7,
     schemas, file_default_instances, TableStruct_duck_5fpayloads_2eproto::offsets,
@@ -829,12 +832,13 @@ SosAlert::SosAlert(const SosAlert& from)
     , decltype(_impl_.hdg_deg_){}
     , decltype(_impl_.batt_pct_){}
     , decltype(_impl_.rssi_dbm_){}
+    , decltype(_impl_.sats_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::memcpy(&_impl_.origin_, &from._impl_.origin_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.rssi_dbm_) -
-    reinterpret_cast<char*>(&_impl_.origin_)) + sizeof(_impl_.rssi_dbm_));
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.sats_) -
+    reinterpret_cast<char*>(&_impl_.origin_)) + sizeof(_impl_.sats_));
   // @@protoc_insertion_point(copy_constructor:duckcdp.SosAlert)
 }
 
@@ -853,6 +857,7 @@ inline void SosAlert::SharedCtor(
     , decltype(_impl_.hdg_deg_){0u}
     , decltype(_impl_.batt_pct_){0u}
     , decltype(_impl_.rssi_dbm_){0}
+    , decltype(_impl_.sats_){0u}
     , /*decltype(_impl_._cached_size_)*/{}
   };
 }
@@ -881,8 +886,8 @@ void SosAlert::Clear() {
   (void) cached_has_bits;
 
   ::memset(&_impl_.origin_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&_impl_.rssi_dbm_) -
-      reinterpret_cast<char*>(&_impl_.origin_)) + sizeof(_impl_.rssi_dbm_));
+      reinterpret_cast<char*>(&_impl_.sats_) -
+      reinterpret_cast<char*>(&_impl_.origin_)) + sizeof(_impl_.sats_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -970,6 +975,14 @@ const char* SosAlert::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx)
       case 10:
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 80)) {
           _impl_.rssi_dbm_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarintZigZag32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // uint32 sats = 11;
+      case 11:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 88)) {
+          _impl_.sats_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
@@ -1065,6 +1078,12 @@ uint8_t* SosAlert::_InternalSerialize(
     target = ::_pbi::WireFormatLite::WriteSInt32ToArray(10, this->_internal_rssi_dbm(), target);
   }
 
+  // uint32 sats = 11;
+  if (this->_internal_sats() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt32ToArray(11, this->_internal_sats(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -1133,6 +1152,11 @@ size_t SosAlert::ByteSizeLong() const {
     total_size += ::_pbi::WireFormatLite::SInt32SizePlusOne(this->_internal_rssi_dbm());
   }
 
+  // uint32 sats = 11;
+  if (this->_internal_sats() != 0) {
+    total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(this->_internal_sats());
+  }
+
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
 }
 
@@ -1181,6 +1205,9 @@ void SosAlert::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTO
   if (from._internal_rssi_dbm() != 0) {
     _this->_internal_set_rssi_dbm(from._internal_rssi_dbm());
   }
+  if (from._internal_sats() != 0) {
+    _this->_internal_set_sats(from._internal_sats());
+  }
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
 
@@ -1199,8 +1226,8 @@ void SosAlert::InternalSwap(SosAlert* other) {
   using std::swap;
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(SosAlert, _impl_.rssi_dbm_)
-      + sizeof(SosAlert::_impl_.rssi_dbm_)
+      PROTOBUF_FIELD_OFFSET(SosAlert, _impl_.sats_)
+      + sizeof(SosAlert::_impl_.sats_)
       - PROTOBUF_FIELD_OFFSET(SosAlert, _impl_.origin_)>(
           reinterpret_cast<char*>(&_impl_.origin_),
           reinterpret_cast<char*>(&other->_impl_.origin_));
